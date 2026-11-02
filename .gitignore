@@ -1,0 +1,13 @@
+# Microdatos del INEI y cachés de las fuentes oficiales: no se suben.
+# El README explica cómo descargarlos y reconstruir todo.
+datos/
+
+# La base limpia se reconstruye con limpiando-enaho; validacion.txt e indicadores.csv sí se versionan
+salidas/*.parquet
+
+# Entorno y cachés
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.streamlit/secrets.toml

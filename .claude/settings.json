@@ -2,8 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(uv run *)",
-      "mcp__bcrp"
+      "mcp__bcrp",
+      "mcp__sbs"
     ]
   },
-  "enabledMcpjsonServers": ["bcrp", "fetch"]
+  "enabledMcpjsonServers": ["bcrp", "sbs", "fetch"]
 }

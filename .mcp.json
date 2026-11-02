@@ -4,6 +4,10 @@
       "command": "uv",
       "args": ["run", "mcp/server.py"]
     },
+    "sbs": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/rodnm/mcp-sbs-peru", "mcp-sbs-peru"]
+    },
     "fetch": {
       "command": "uvx",
       "args": ["mcp-server-fetch"]

@@ -39,13 +39,27 @@ def test_herramientas_usadas_en_orden_sin_repetir_ni_contar_la_respuesta():
     assert evaluar.herramientas_usadas(eventos) == ["Skill:limpiando-enaho", "mcp__bcrp__resumen"]
 
 
-@pytest.mark.parametrize("copia", ["crudos", "proyecto", "proyecto-sin-skills"])
+@pytest.mark.parametrize("copia", ["crudos", "proyecto", "crudos-con-mcp", "proyecto-sin-mcp"])
 def test_ningun_modo_ve_las_respuestas_esperadas(tmp_path, copia):
     evaluar.preparar(copia, tmp_path)
     assert not (tmp_path / "evaluacion").exists() and not (tmp_path / ".git").exists()
-    assert (tmp_path / ".claude" / "skills").exists() == (copia == "proyecto")
-    if copia == "crudos":
+    assert (tmp_path / ".claude" / "skills").exists() == (copia in ("proyecto", "proyecto-sin-mcp"))
+    if copia.startswith("crudos"):
         assert not (tmp_path / "salidas").exists() and not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_solo_mcp_es_el_modo_a_mas_el_servidor(tmp_path):
+    # Sin las salidas de las skills, ni las figuras, ni la referencia de la sesión 16 (que trae la respuesta de e3).
+    evaluar.preparar("crudos-con-mcp", tmp_path)
+    assert sorted(p.name for p in tmp_path.iterdir()) == [".mcp.json", "datos", "mcp", "pyproject.toml", "uv.lock"]
+    assert (tmp_path / "mcp" / "server.py").is_file()
+
+
+def test_sin_mcp_tampoco_tiene_el_codigo_del_servidor(tmp_path):
+    # Las herramientas son funciones de Python: con mcp/server.py a mano, Bash puede llamarlas sin el protocolo MCP.
+    evaluar.preparar("proyecto-sin-mcp", tmp_path)
+    assert not (tmp_path / "mcp").exists() and not (tmp_path / ".mcp.json").exists()
+    assert (tmp_path / "salidas" / "indicadores.csv").is_file()
 
 
 def test_lenguaje_causal():

@@ -11,8 +11,8 @@ evaluacion/ (donde están las respuestas esperadas). Las configuraciones:
     A            herramientas estándar de Claude Code; sin MCP, sin skills, sin CLAUDE.md ni salidas: solo los zip
     B            lo mismo que A más los servidores MCP (bcrp, sbs) y las skills del proyecto
     memoria      sin ninguna herramienta
-    solo-mcp     B sin las skills
-    solo-skills  B sin los servidores MCP
+    solo-mcp     A más los servidores MCP: sin skills, sin sus salidas y sin CLAUDE.md
+    solo-skills  B sin los servidores MCP ni el código de mcp/ (Bash podría llamar sus funciones directamente)
     sin-propia   B sin la herramienta propia comparar_series
 
 Escribe evaluacion/resultados.csv (o robustez_resultados.csv) y un resumen por modo en la consola.
@@ -54,9 +54,9 @@ MODOS = {  # (qué se copia, argumentos de claude -p)
     "B": ("proyecto", ["--tools", f"{BASICAS},Skill", *MCP_PROYECTO,
                        "--allowedTools", f"{BASICAS},Skill,mcp__bcrp,mcp__sbs"]),
     "memoria": ("vacio", ["--tools", ""]),
-    "solo-mcp": ("proyecto-sin-skills", ["--tools", BASICAS, *MCP_PROYECTO, "--allowedTools",
-                                         f"{BASICAS},mcp__bcrp,mcp__sbs", "--disallowedTools", "Skill"]),
-    "solo-skills": ("proyecto", ["--tools", f"{BASICAS},Skill", "--allowedTools", f"{BASICAS},Skill"]),
+    "solo-mcp": ("crudos-con-mcp", ["--tools", BASICAS, *MCP_PROYECTO, "--allowedTools",
+                                    f"{BASICAS},mcp__bcrp,mcp__sbs", "--disallowedTools", "Skill"]),
+    "solo-skills": ("proyecto-sin-mcp", ["--tools", f"{BASICAS},Skill", "--allowedTools", f"{BASICAS},Skill"]),
     "sin-propia": ("proyecto", ["--tools", f"{BASICAS},Skill", *MCP_PROYECTO,
                                 "--allowedTools", f"{BASICAS},Skill,mcp__bcrp,mcp__sbs",
                                 "--disallowedTools", "mcp__bcrp__comparar_series"]),
@@ -69,15 +69,20 @@ def preparar(copia, destino):
     """Arma la carpeta de trabajo de un modo. Ningún modo ve evaluacion/."""
     if copia == "vacio":
         return
-    if copia == "crudos":  # solo los microdatos y límites originales, como los bajaría cualquiera
+    if copia.startswith("crudos"):  # solo los microdatos y límites originales, como los bajaría cualquiera
         (destino / "datos").mkdir()
         for archivo in ("966-Modulo34.zip", "966-Modulo02.zip", "peru_departamental_simple.geojson"):
             if (RAIZ / "datos" / archivo).is_file():
                 shutil.copy(RAIZ / "datos" / archivo, destino / "datos")
+        if copia == "crudos-con-mcp":  # el Modo A más el servidor del BCRP y su entorno: nada de lo que hicieron las skills
+            shutil.copytree(RAIZ / "mcp", destino / "mcp", ignore=shutil.ignore_patterns("__pycache__"))
+            for archivo in (".mcp.json", "pyproject.toml", "uv.lock"):
+                shutil.copy(RAIZ / archivo, destino)
         return
     shutil.copytree(RAIZ, destino, dirs_exist_ok=True, ignore=lambda d, nombres: [n for n in nombres if n in EXCLUIDOS])
-    if copia == "proyecto-sin-skills":
-        shutil.rmtree(destino / ".claude" / "skills")
+    if copia == "proyecto-sin-mcp":  # las herramientas son funciones de Python: con el código, Bash las llamaría igual
+        shutil.rmtree(destino / "mcp")
+        (destino / ".mcp.json").unlink()
 
 
 def herramientas_usadas(eventos):

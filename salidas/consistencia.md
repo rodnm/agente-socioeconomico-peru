@@ -1,0 +1,14 @@
+# Consistencia entre herramientas
+
+Generado por `verificando-consistencia/scripts/verificar.py`. OK: 8.
+
+| Fuente | Verificación | Resultado | Detalle | Explicación |
+|---|---|---|---|---|
+| ENAHO | Pobreza nacional: peso de hogar frente a peso de persona | **OK** | 27.58 frente a 27.53 (diferencia 0.05; tolerancia 0.1) |  |
+| ENAHO | Validaciones de limpiando-enaho | **OK** | 45 comprobaciones OK, 0 fallas |  |
+| ENAHO | La tasa nacional queda entre la urbana y la rural | **OK** | urbana 24.81, nacional 27.58, rural 39.30 |  |
+| ENAHO | Departamentos de limpiando-enaho frente a la referencia de la sesión 16 | **OK** | 25 departamentos; 0 fuera de ±0.1 |  |
+| ENAHO | Mapa (mapeando-enaho) frente a indicadores (limpiando-enaho) | **OK** | 25 unidades en el mapa; 0 con cifra distinta |  |
+| BCRP | Inflación a 12 meses: recalculada desde PN38705PM frente a la publicada en PN01273PM | **OK** | 12 meses de 2024; diferencia máxima 0.000 puntos en 2024-03 | El índice se publica redondeado; una diferencia mayor indicaría revisión de datos o un error de alineación de periodos. |
+| BCRP | resumen frente a serie (PN01273PM, 2024) | **OK** | promedio, máximo, mínimo y cambio coinciden |  |
+| Informe | Cifras del informe frente a una nueva consulta a las herramientas | **OK** | 41 cifras resueltas de nuevo; 0 distintas; 0 sin dato |  |

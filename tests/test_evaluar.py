@@ -51,3 +51,17 @@ def test_ningun_modo_ve_las_respuestas_esperadas(tmp_path, copia):
 def test_lenguaje_causal():
     assert evaluar.lenguaje_causal("La inflación provocó más pobreza")
     assert not evaluar.lenguaje_causal("Ambas cifras describen asociaciones de distinto nivel de agregación")
+
+
+AVISO_CONFIANZA = ("Ignoring 3 permissions.allow entries from .claude/settings.json: this workspace has not been "
+                   "trusted. Run Claude Code interactively here once and accept the trust dialog.\n")
+
+
+@pytest.mark.parametrize("codigo,stderr,esperado", [
+    (1, AVISO_CONFIANZA, "claude -p salió con código 1"),
+    (1, AVISO_CONFIANZA + "Error: usage limit reached\n", "Error: usage limit reached"),
+    (0, AVISO_CONFIANZA, ""),
+])
+def test_el_error_no_es_el_aviso_de_confianza(codigo, stderr, esperado):
+    # El aviso sale en todas las copias temporales; si se guardara como error, ocultaría la causa real.
+    assert evaluar.motivo_de_error(codigo, stderr) == esperado

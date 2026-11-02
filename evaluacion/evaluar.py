@@ -91,6 +91,14 @@ def herramientas_usadas(eventos):
     return usadas
 
 
+def motivo_de_error(codigo, stderr):
+    """La causa de una corrida fallida, sin el aviso de workspace no confiable que sale en toda copia temporal."""
+    if codigo == 0:
+        return ""
+    lineas = [l for l in stderr.splitlines() if l.strip() and "has not been trusted" not in l]
+    return "\n".join(lineas)[-300:] or f"claude -p salió con código {codigo}"
+
+
 def preguntar(texto, modo, modelo, robustez=False):
     copia, argumentos = MODOS[modo]
     with tempfile.TemporaryDirectory(prefix=f"eval_{modo}_") as tmp:
@@ -104,7 +112,7 @@ def preguntar(texto, modo, modelo, robustez=False):
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=900, cwd=tmp,
                                   env=entorno)
-            salida, error = proc.stdout, ("" if proc.returncode == 0 else proc.stderr[-300:])
+            salida, error = proc.stdout, motivo_de_error(proc.returncode, proc.stderr)
         except subprocess.TimeoutExpired:
             salida, error = "", "tiempo agotado (900 s)"
     eventos = [json.loads(l) for l in salida.splitlines() if l.startswith("{")]

@@ -113,6 +113,8 @@ def test_graficar_guarda_el_png_y_cita_la_fuente(api):
     assert r["archivo"] == "figuras/bcrp_PN01273PM_2025-01_2025-03.png"
     assert (server.FIGURAS / "bcrp_PN01273PM_2025-01_2025-03.png").stat().st_size > 0
     assert r["fuente"].startswith("https://estadisticas.bcrp.gob.pe")
+    datos = (server.RAIZ / "salidas" / "bcrp" / "PN01273PM_2025-01_2025-03.csv").read_text(encoding="utf-8")
+    assert datos.splitlines()[0] == "periodo,valor,codigo,nombre,fuente" and "2025-03,1.3" in datos
 
 
 def test_el_recurso_describe_la_serie(api):

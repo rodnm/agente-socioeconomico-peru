@@ -158,6 +158,7 @@ def escribir(reg):
                for f in tabla.itertuples()]
     SALIDAS.mkdir(exist_ok=True)
     (SALIDAS / "consistencia.md").write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    tabla.to_csv(SALIDAS / "consistencia.csv", index=False, encoding="utf-8")
     return conteo
 
 

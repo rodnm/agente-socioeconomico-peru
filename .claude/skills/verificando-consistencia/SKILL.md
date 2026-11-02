@@ -15,7 +15,7 @@ allowed-tools: Bash(uv run *), Read
 | Fuente | Verificación |
 |---|---|
 | ENAHO | Pobreza nacional con peso de hogar frente a peso de persona; validaciones de la limpieza; la tasa nacional entre la urbana y la rural; los 25 departamentos frente a la referencia de la sesión 16; el mapa frente a los indicadores |
-| BCRP | La inflación a 12 meses recalculada desde el índice del IPC frente a la publicada; `resumen` frente a los datos de `serie` |
+| BCRP | La inflación a 12 meses recalculada desde el índice del IPC vigente (`PN38705PM`, Dic.2021 = 100) frente a la publicada (`PN01273PM`); `resumen` frente a los datos de `serie` |
 | Informe | Cada cifra de `informes/informe_final.md` frente a una nueva consulta a sus herramientas |
 
 ## Cómo leer el resultado
@@ -23,4 +23,4 @@ allowed-tools: Bash(uv run *), Read
 - **OK**: coinciden dentro de la tolerancia.
 - **DIFERENCIA**: no coinciden por una razón conocida, que la tabla explica (por ejemplo, dos ponderadores distintos).
 - **FALLA**: no coinciden y no debería pasar. Detente y muéstrala; no corrijas cifras a mano para que coincidan.
-- **NO VERIFICABLE**: la fuente no respondió o falta un insumo. Dilo como limitación; no lo reemplaces por una estimación.
+- **NO VERIFICABLE**: la fuente no respondió, la serie no tiene datos del periodo o falta un insumo. El detalle dice cuál de los tres. Dilo como limitación; no lo reemplaces por una estimación.

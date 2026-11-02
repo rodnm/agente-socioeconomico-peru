@@ -7,7 +7,9 @@ import server
 CATALOGO_FALSO = (
     "Código de serie;Categoría de serie;Grupo de serie;Nombre de serie;Frecuencia;Fecha de actualización;"
     "Fecha de inicio\n"
-    "PN01270PM;Precios;Índice de precios Lima Metropolitana;IPC (índice 2021 = 100);Mensual;2026-10-01;Ene.1950\n"
+    "PN01270PM;Precios;Índice de precios Lima Metropolitana;IPC (índice 2009 = 100) (descontinuada);Mensual;"
+    "2022-04-07;Ene.1949\n"
+    "PN38705PM;Precios;Índice de precios Lima Metropolitana;IPC (índice Dic.2021 = 100);Mensual;2026-10-01;Ene.1991\n"
     "PN01271PM;Precios;Índice de precios Lima Metropolitana;IPC (var% mensual);Mensual;2026-10-01;Ene.1950\n"
     "PN01273PM;Precios;Índice de precios Lima Metropolitana;IPC (var% 12 meses);Mensual;2026-10-01;Ene.1950\n"
     "PD04638PD;Tipo de cambio;Tipo de cambio nominal;Interbancario venta;Diaria;2026-10-01;01.Ene.97\n"

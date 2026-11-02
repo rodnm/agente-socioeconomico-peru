@@ -27,6 +27,15 @@ OCULTAR = [
 ]
 
 
+# Mensajes que Claude Code inserta con el rol de la persona: se muestran plegados y no cuentan como pedidos.
+GENERADO_POR_CLAUDE_CODE = {
+    "Base directory for this skill": "Instrucciones de la skill que cargó Claude Code",
+    "This session is being continued from a previous conversation": (
+        "Resumen automático de la parte anterior de la sesión (Claude Code compactó el contexto)"),
+}
+AVISO_DE_LIMITE = re.compile(r"\[(Usage limit reached|Earlier usage-limit notes)")
+
+
 def ocultar(texto):
     for patron, reemplazo in OCULTAR:
         texto = patron.sub(reemplazo, texto)
@@ -91,15 +100,17 @@ def a_markdown(eventos, titulo, pedido=None):
             continue
         for b in bloques(mensaje.get("content")):
             if b.get("type") == "text" and b.get("text", "").strip():
-                if tipo == "user" and b["text"].lstrip().startswith("<"):
+                if tipo == "user" and (b["text"].lstrip().startswith("<") or AVISO_DE_LIMITE.match(b["text"])):
                     continue  # recordatorios y avisos del sistema, no lo que escribió la persona
-                if tipo == "user" and b["text"].startswith("Base directory for this skill"):
-                    lineas += ["<details><summary>Instrucciones de la skill que cargó Claude Code</summary>", "",
-                               "```markdown", b["text"].strip(), "```", "</details>", ""]
+                generado = next((t for inicio, t in GENERADO_POR_CLAUDE_CODE.items()
+                                 if tipo == "user" and b["text"].startswith(inicio)), None)
+                if generado:
+                    lineas += [f"<details><summary>{generado}</summary>", "", "```markdown", b["text"].strip(), "```",
+                               "</details>", ""]
                     continue
                 turno += 1 if tipo == "user" else 0
                 quien = f"## {turno}. Pedido" if tipo == "user" else "**Claude:**"
-                lineas += [f"{quien} {('· ' + cuando) if cuando and tipo == 'user' else ''}".rstrip(), "",
+                lineas += [f"{quien} {('· ' + cuando + ' UTC') if cuando and tipo == 'user' else ''}".rstrip(), "",
                            b["text"].strip(), ""]
             elif b.get("type") == "tool_use":
                 argumentos = json.dumps(b.get("input"), ensure_ascii=False, indent=1)

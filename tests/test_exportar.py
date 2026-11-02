@@ -55,3 +55,15 @@ def test_la_transcripcion_sigue_completa(exportar):
     md = exportar.a_markdown(EVENTOS, "Corrida")
     assert "## 1. Pedido" in md and "Haz el informe." in md and "**Claude:**" in md and "Listo." in md
     assert md.count("**Herramienta:**") == 7
+
+
+def test_lo_que_genera_claude_code_no_figura_como_pedido(exportar):
+    eventos = [
+        {"type": "user", "timestamp": "2026-11-02T16:57:02Z", "message": {"content": (
+            "This session is being continued from a previous conversation that ran out of context. Resumen.")}},
+        {"type": "user", "message": {"content": "[Usage limit reached; a short grace allowance remains.]"}},
+        {"type": "user", "timestamp": "2026-11-02T23:10:31Z", "message": {"content": "continua"}},
+    ]
+    md = exportar.a_markdown(eventos, "Sesión")
+    assert md.count(". Pedido") == 1 and "## 1. Pedido · 2026-11-02 23:10:31 UTC" in md
+    assert "Resumen automático" in md and "Usage limit" not in md

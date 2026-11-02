@@ -3,7 +3,8 @@
     uv run scripts/exportar_evidencias.py ORIGEN.jsonl evidencias_ia/skills/01_encadenamiento.md [--titulo T]
 
 Acepta las sesiones que Claude Code guarda en ~/.claude/projects/<proyecto>/<sesión>.jsonl y la salida de
-`claude -p --output-format stream-json --verbose`. Conserva los pedidos, las respuestas, cada llamada a una
+`claude -p --output-format stream-json --verbose`. Empieza con una línea de tiempo de las herramientas usadas, con
+los servidores MCP y las skills que intervinieron. Conserva los pedidos, las respuestas, cada llamada a una
 herramienta con sus argumentos y un extracto de cada resultado. Oculta rutas personales, el nombre de usuario del
 sistema, correos, claves y tokens. Revisen el resultado antes de publicarlo: la redacción automática no reemplaza
 una lectura humana.
@@ -43,8 +44,39 @@ def bloques(contenido):
     return [{"type": "text", "text": contenido}] if isinstance(contenido, str) else contenido or []
 
 
+def linea_de_tiempo(eventos):
+    """Las herramientas en el orden en que se usaron, con los servidores MCP y las skills que intervinieron."""
+    pasos, servidores, skills = [], [], []
+    for e in eventos:
+        if e.get("type") != "assistant":
+            continue
+        for b in bloques((e.get("message") or {}).get("content")):
+            if b.get("type") != "tool_use" or b.get("name") == "StructuredOutput":
+                continue
+            nombre, entrada = b.get("name", ""), b.get("input") or {}
+            if nombre == "Skill":
+                skills.append(entrada.get("skill", "?"))
+                pasos.append(f"Skill `{skills[-1]}`")
+            elif nombre.startswith("mcp__"):
+                _, servidor, herramienta = nombre.split("__", 2)
+                servidores.append(servidor)
+                pasos.append(f"MCP `{servidor}.{herramienta}`")
+            elif nombre == "Bash":
+                comando = ocultar((entrada.get("command") or "").strip().splitlines()[0])[:90].replace("`", "'")
+                pasos.append(f"Bash `{comando}`")
+            else:
+                pasos.append(f"`{nombre}`")
+    if not pasos:
+        return []
+    def unicos(nombres):
+        return ", ".join(f"`{n}`" for n in dict.fromkeys(nombres)) or "ninguno"
+    return (["## Línea de tiempo", "",
+             f"Servidores MCP: {unicos(servidores)} · Skills: {unicos(skills)} · {len(pasos)} llamadas a herramientas",
+             ""] + [f"{i}. {p}" for i, p in enumerate(pasos, 1)] + [""])
+
+
 def a_markdown(eventos, titulo, pedido=None):
-    lineas, turno = [f"# {titulo}", ""], 0
+    lineas, turno = [f"# {titulo}", "", *linea_de_tiempo(eventos)], 0
     if pedido:  # claude -p no emite el pedido inicial como evento
         turno = 1
         lineas += ["## 1. Pedido (claude -p)", "", pedido, ""]

@@ -94,4 +94,4 @@ def test_bcrp_caido_no_se_reemplaza_por_estimaciones(verificar, api):
     reg = verificar.Registro()
     verificar.verificar_bcrp(reg, 2024)
     assert set(resultados(reg, "BCRP").values()) == {"NO VERIFICABLE"}
-    assert all("HTML" in f["detalle"] for f in reg.filas)
+    assert all("HTML" in f["detalle"] and "no respondió" in f["explicacion"] for f in reg.filas)

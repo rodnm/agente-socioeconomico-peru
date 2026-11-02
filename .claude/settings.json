@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run *)",
+      "mcp__bcrp"
+    ]
+  },
+  "enabledMcpjsonServers": ["bcrp", "fetch"]
+}

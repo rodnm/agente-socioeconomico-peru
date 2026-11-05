@@ -26,6 +26,7 @@ def copiar_proyecto(destino: Path, skills=("limpiando-enaho", "graficando-enaho"
     for skill in skills:
         shutil.copytree(SKILLS / skill, destino / ".claude" / "skills" / skill)
     shutil.copytree(RAIZ / "referencias", destino / "referencias")
+    shutil.copytree(RAIZ / "scripts", destino / "scripts")
     if datos:
         (destino / "datos").mkdir()
         for archivo in ZIPS + [RAIZ / "datos" / "peru_departamental_simple.geojson"]:

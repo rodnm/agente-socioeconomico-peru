@@ -12,6 +12,9 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 
 RAIZ = Path(__file__).resolve().parents[4]
+if str(RAIZ / "scripts") not in sys.path:
+    sys.path.insert(0, str(RAIZ / "scripts"))
+import estilo_graficos
 BASE = RAIZ / "salidas" / "personas_2024.parquet"
 GEOJSON = RAIZ / "datos" / "peru_departamental_simple.geojson"
 REFERENCIA = RAIZ / "referencias" / "inei_pobreza_2024.csv"
@@ -67,39 +70,53 @@ def comprobar_referencia(mapa: gpd.GeoDataFrame) -> None:
 
 
 def dibujar(mapa: gpd.GeoDataFrame) -> None:
-    figura, eje = plt.subplots(figsize=(7.4, 8.8), facecolor=COLOR_FONDO)
+    figura, eje = plt.subplots(figsize=(7.6, 9.0), facecolor=estilo_graficos.COLOR_FONDO)
+    eje.set_facecolor(estilo_graficos.COLOR_FONDO)
     mapa.plot(
-        column="pobreza_pct", ax=eje, cmap=ESCALA, vmin=0, vmax=mapa["pobreza_pct"].max(),
-        edgecolor=COLOR_BORDE, linewidth=0.8, legend=True,
-        legend_kwds={"label": "% de personas", "shrink": 0.5, "aspect": 22, "pad": 0.02},
+        column="pobreza_pct", ax=eje, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=45.0,
+        edgecolor="#ffffff", linewidth=0.8, legend=True,
+        legend_kwds={"label": "% de personas en pobreza", "shrink": 0.45, "aspect": 20, "pad": 0.02},
     )
     eje.set_axis_off()
 
     barra = figura.axes[-1]
-    barra.tick_params(colors=COLOR_SECUNDARIO, labelsize=9, length=0)
-    barra.yaxis.label.set_color(COLOR_SECUNDARIO)
+    barra.set_yticks([0, 10, 20, 30, 40, 45])
+    barra.set_yticklabels(["0 %", "10 %", "20 %", "30 %", "40 %", "45 %"])
+    barra.tick_params(colors=estilo_graficos.COLOR_SECUNDARIO, labelsize=8.5, length=0)
+    barra.yaxis.label.set_color(estilo_graficos.COLOR_SECUNDARIO)
     for borde in barra.spines.values():
         borde.set_visible(False)
 
-    figura.suptitle(
-        "Pobreza monetaria por departamento, Perú 2024",
-        x=0.03, y=0.975, ha="left", color=COLOR_TEXTO, fontsize=15, fontweight="bold",
+    # Recuadro ampliado para Lima y Callao
+    inset_ax = eje.inset_axes([0.03, 0.15, 0.35, 0.35], facecolor="#f8fafc")
+    lima_callao = mapa[mapa["departamento"].isin(["07", "15"])]
+    lima_callao.plot(
+        column="pobreza_pct", ax=inset_ax, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=45.0,
+        edgecolor="#ffffff", linewidth=1.2,
     )
+    inset_ax.set_xlim(-77.8, -75.8)
+    inset_ax.set_ylim(-13.0, -11.3)
+    inset_ax.set_xticks([])
+    inset_ax.set_yticks([])
+    inset_ax.set_title("Detalle: Lima y Callao", fontsize=8.5, color=estilo_graficos.COLOR_TEXTO, fontweight="bold", pad=3)
+    for s in inset_ax.spines.values():
+        s.set_color(estilo_graficos.COLOR_LINEA_GUIA)
+        s.set_linewidth(0.8)
+
+    callao_p = mapa.loc[mapa["departamento"] == "07", "pobreza_pct"].iloc[0]
+    lima_p = mapa.loc[mapa["departamento"] == "15", "pobreza_pct"].iloc[0]
+    inset_ax.text(-77.15, -12.05, f"Callao\n{callao_p:.1f} %", fontsize=7.5, color="#ffffff", fontweight="bold", ha="center", va="center")
+    inset_ax.text(-76.6, -11.9, f"Lima\n{lima_p:.1f} %", fontsize=7.5, color=estilo_graficos.COLOR_TEXTO, fontweight="bold", ha="center", va="center")
+
     alto, bajo = mapa.loc[mapa["pobreza_pct"].idxmax()], mapa.loc[mapa["pobreza_pct"].idxmin()]
-    figura.text(
-        0.03, 0.935,
-        f"Va de {bajo['pobreza_pct']:.1f} % en {bajo['NOMBDEP'].title()} a {alto['pobreza_pct']:.1f} % en "
-        f"{alto['NOMBDEP'].title()}. Lima y Callao se muestran por separado.",
-        color=COLOR_SECUNDARIO, fontsize=10,
-    )
-    figura.text(
-        0.03, 0.02, "Fuente: INEI, ENAHO 2024. Ponderado por hogar con factor07 × mieperho.",
-        color=COLOR_SECUNDARIO, fontsize=8.5,
-    )
-    figura.tight_layout(rect=(0, 0.04, 1, 0.95))
+    titulo = "Pobreza monetaria por departamento, Perú 2024"
+    subtitulo = (f"Va de {bajo['pobreza_pct']:.1f} % en {bajo['NOMBDEP'].title()} a {alto['pobreza_pct']:.1f} % en "
+                 f"{alto['NOMBDEP'].title()}. Lima y Callao se muestran por separado.")
+    fuente = "Fuente: INEI, ENAHO 2024. Ponderado por hogar con factor07 × mieperho."
+    estilo_graficos.encabezado(figura, eje, titulo=titulo, subtitulo=subtitulo, fuente=fuente)
 
     DESTINO.parent.mkdir(exist_ok=True)
-    figura.savefig(DESTINO, dpi=200, facecolor=COLOR_FONDO, metadata={"Software": None})
+    figura.savefig(DESTINO, dpi=200, facecolor=estilo_graficos.COLOR_FONDO, metadata={"Software": None})
     plt.close(figura)
 
 

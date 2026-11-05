@@ -26,8 +26,12 @@ import pandas as pd  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 
+import sys
 AQUI = Path(__file__).parent
 RAIZ = AQUI.parent
+if str(RAIZ / "scripts") not in sys.path:
+    sys.path.insert(0, str(RAIZ / "scripts"))
+import estilo_graficos  # noqa: E402
 DATOS = RAIZ / "datos" / "bcrp"
 CATALOGO = DATOS / "catalogo_bcrp.csv"
 CACHE = DATOS / "cache"
@@ -322,21 +326,30 @@ def graficar_serie(codigo: str, desde: str, hasta: str, titulo: str | None = Non
     """
     ficha, datos, url, aviso = _consultar(codigo, desde, hasta)
     s = _como_serie(datos)
-    fig, ax = plt.subplots(figsize=(9, 4.8))
-    ax.plot(_eje_x(s.index, ficha["frecuencia"]), s.to_numpy(), color="#1f4e79", linewidth=1.8)
-    ax.set_title("\n".join(textwrap.wrap(titulo or ficha["nombre"], 80)), loc="left", fontsize=12,
-                 fontweight="bold")
-    ax.text(0, 1.01, f"{ficha['nombre'][:110]} · {s.index[0]} a {s.index[-1]}", transform=ax.transAxes,
-            fontsize=8.5, color="#555555", va="bottom")
+    fig, ax = plt.subplots(figsize=(9, 4.8), facecolor=estilo_graficos.COLOR_FONDO)
+    ax.set_facecolor(estilo_graficos.COLOR_FONDO)
+    ax.plot(_eje_x(s.index, ficha["frecuencia"]), s.to_numpy(), color=estilo_graficos.COLOR_PRINCIPAL, linewidth=1.8)
+
+    nombre_l = ficha["nombre"].lower()
+    if "%" in nombre_l or "var%" in nombre_l:
+        ax.set_ylabel("%", color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9)
+    elif "soles" in nombre_l or "s/" in nombre_l or "tipo de cambio" in nombre_l:
+        ax.set_ylabel("S/ por US$", color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9)
+    elif "índice" in nombre_l or "indice" in nombre_l:
+        ax.set_ylabel("Índice", color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9)
+
     if s.min() < 0 < s.max():
-        ax.axhline(0, color="#888888", linewidth=0.8)
-    ax.grid(axis="y", alpha=0.3)
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.text(0.01, -0.02, f"Fuente: BCRP, serie {codigo} ({ficha['frecuencia'].lower()}). {url}", fontsize=7.5,
-             color="#555555")
+        ax.axhline(0, color=estilo_graficos.COLOR_LINEA_GUIA, linewidth=0.8, linestyle="--")
+    estilo_graficos.estilizar_ejes(ax)
+
+    titulo_texto = titulo or ficha["nombre"]
+    subtitulo_texto = f"{ficha['nombre'][:100]} · {s.index[0]} a {s.index[-1]}"
+    fuente_texto = f"Fuente: BCRP, serie {codigo} ({ficha['frecuencia'].lower()})."
+    estilo_graficos.encabezado(fig, ax, titulo=titulo_texto, subtitulo=subtitulo_texto, fuente=fuente_texto)
+
     FIGURAS.mkdir(exist_ok=True)
     archivo = FIGURAS / f"bcrp_{codigo}_{desde}_{hasta}.png"
-    fig.savefig(archivo, dpi=200, bbox_inches="tight")
+    fig.savefig(archivo, dpi=200, facecolor=estilo_graficos.COLOR_FONDO)
     plt.close(fig)
     # Los datos graficados quedan junto a las salidas: el dashboard los lee sin volver a consultar al BCRP
     (RAIZ / "salidas" / "bcrp").mkdir(parents=True, exist_ok=True)

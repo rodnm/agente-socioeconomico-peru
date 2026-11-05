@@ -201,7 +201,7 @@ Usó 2 servidores MCP y 5 skills en 41 turnos, 188 segundos y USD 0.76. La trans
 | 23–26 | `armar_informe.py` | [`informes/informe_final.md`](informes/informe_final.md), con 41 cifras trazadas |
 | 27–28 | skill `verificando-consistencia` | [`salidas/consistencia.md`](salidas/consistencia.md): 8 de 8 OK |
 
-Las salidas de la ENAHO regeneradas coinciden byte a byte con las versionadas.
+Las salidas tabulares (CSV) de la ENAHO regeneradas coinciden byte a byte con las versionadas.
 
 ## 12. Evidencias del uso de IA
 

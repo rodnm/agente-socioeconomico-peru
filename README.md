@@ -76,8 +76,8 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 |---|---|
 | **`limpiando-enaho`** | Lee los módulos 34 (sumaria) y 02 (miembros) con las llaves como texto, filtra a los residentes habituales (`((p204==1)&(p205==2))\|((p204==2)&(p206==1))`), une con `merge(..., validate="m:1")` y define `urbano = estrato <= 5` y `pobre = pobreza <= 2`. Pondera por hogar (`factor07 × mieperho`) para las cifras nacionales, por área y por departamento, y por persona (`facpob07`) para sexo y edad. Escribe `salidas/validacion.txt` y se detiene si una validación esencial falla, sin dejar la base. |
 | **`graficando-enaho`** | Grafica la pobreza por área, sexo, edad o departamento con títulos que dicen el hallazgo, unidad, periodo y fuente. Si falta la base procesada, primero corre `limpiando-enaho`. |
-| **`mapeando-enaho`** | Hace el mapa departamental uniendo `ubigeo[:2]` con `FIRST_IDDP`, con 25 unidades (Lima y Callao separados) y una escala que empieza en 0. Compara cada departamento con el informe técnico oficial del INEI en `salidas/mapa_vs_referencia.csv`. |
-| `descargando-enaho` | Baja los zip del INEI y los límites departamentales a `datos/`. |
+| **`mapeando-enaho`** | Hace los mapas departamental (25 departamentos) y de ámbitos territoriales (26 ámbitos con Lima desagregada) uniendo `ubigeo[:2]` con `FIRST_IDDP` sobre límites oficiales del IGN. Compara cada departamento con el informe técnico oficial del INEI en `salidas/mapa_vs_referencia.csv`. |
+| `descargando-enaho` | Baja los zip de microdatos del INEI a `datos/`. |
 | ★ `informando-peru` | Arma el informe con marcadores, tabla de trazabilidad y referencias (ver la sección 2). |
 | ★ `verificando-consistencia` | Contrasta las herramientas entre sí y escribe `salidas/consistencia.md` con OK, DIFERENCIA, FALLA o NO VERIFICABLE. Compara la pobreza con dos ponderadores, el mapa con los indicadores, la inflación a 12 meses recalculada desde el índice del IPC con la publicada, `resumen` con `serie` y cada cifra del informe con su fuente. |
 
@@ -87,7 +87,7 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 |---|---|---|
 | ENAHO 2024, módulo 34 (sumaria) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip> | `descargando-enaho` |
 | ENAHO 2024, módulo 02 (miembros del hogar) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip> | `descargando-enaho` |
-| Límites departamentales | [`peru_departamental_simple.geojson`](https://raw.githubusercontent.com/d2cml-ai/Data-Science-Python/main/sessions/06-geoespacial/lab/Data/peru_departamental_simple.geojson) | `descargando-enaho` |
+| Límites oficiales del IGN (25 departamentos y 26 ámbitos) | [`referencias/limites_departamentales_ign.geojson`](referencias/limites_departamentales_ign.geojson) | incluidos en el repositorio (`scripts/preparar_limites.py`, COD-AB) |
 | Series del BCRP | API: `https://estadisticas.bcrp.gob.pe/estadisticas/series/api/{código}/json/{desde}/{hasta}` ([documentación](https://estadisticas.bcrp.gob.pe/estadisticas/series/documentos/bcrpdataapi.pdf)) | servidor `bcrp`, al consultar |
 | Boletines de la SBS | archivos oficiales de la SBS; cada respuesta del servidor trae la URL del boletín ([detalle](https://github.com/rodnm/mcp-sbs-peru)) | servidor `sbs`, al consultar |
 | Cifras oficiales de pobreza 2024 (INEI) | [`referencias/inei_pobreza_2024.csv`](referencias/inei_pobreza_2024.csv) | incluida en el repo, extraída de Cuadros III.1 y III.4 del informe técnico del INEI |

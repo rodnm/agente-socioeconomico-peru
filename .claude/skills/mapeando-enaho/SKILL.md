@@ -7,10 +7,10 @@ allowed-tools: Bash(uv run *)
 # Mapear la pobreza de la ENAHO
 
 1. Si no existe `salidas/personas_2024.parquet`, usa primero la skill `limpiando-enaho`.
-2. Si falta `datos/peru_departamental_simple.geojson`, usa primero la skill `descargando-enaho`.
+2. Si falta `referencias/limites_departamentales_ign.geojson`, ejecuta primero `python scripts/preparar_limites.py`.
 3. Corre exactamente: `uv run ${CLAUDE_SKILL_DIR}/scripts/mapear.py`
 4. Si el script se detiene, muestra su mensaje y detente: la cifra o la unión están mal.
-5. Responde con `mapas/pobreza_departamento.png` y los departamentos de mayor y menor pobreza que imprime el script. La comparación con la referencia oficial del INEI queda en `salidas/mapa_vs_referencia.csv`.
+5. Responde con `mapas/pobreza_departamento.png` (25 departamentos) y `mapas/pobreza_ambitos.png` (26 ámbitos oficiales con Lima desagregada), indicando los departamentos de mayor y menor pobreza que imprime el script. La comparación con la referencia oficial del INEI queda en `salidas/mapa_vs_referencia.csv`.
 
 ## Reglas que fija el script
 

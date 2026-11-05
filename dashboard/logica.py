@@ -19,7 +19,9 @@ BCRP = RAIZ / "salidas" / "bcrp"
 RESULTADOS = RAIZ / "evaluacion" / "resultados.csv"
 ROBUSTEZ = RAIZ / "evaluacion" / "robustez_resultados.csv"
 # datos/ no se versiona: en la nube los límites se bajan de la copia del curso
-GEOJSON = RAIZ / "datos" / "peru_departamental_simple.geojson"
+GEOJSON_OFICIAL = RAIZ / "referencias" / "limites_departamentales_ign.geojson"
+GEOJSON_LEGACY = RAIZ / "datos" / "peru_departamental_simple.geojson"
+GEOJSON = GEOJSON_OFICIAL if GEOJSON_OFICIAL.is_file() else GEOJSON_LEGACY
 URL_GEOJSON = ("https://raw.githubusercontent.com/d2cml-ai/Data-Science-Python/main/sessions/06-geoespacial/lab/Data/"
                "peru_departamental_simple.geojson")
 DEPARTAMENTOS = 25

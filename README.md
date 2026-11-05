@@ -17,6 +17,12 @@ Tarea 4 del curso Python Intermedio ([enunciado](https://github.com/d2cml-ai/Dat
 
 Construir un agente que no conteste de memoria. Ante una pregunta en lenguaje natural, el agente busca la serie o el indicador correcto, lo consulta en la fuente oficial, calcula con código y no a mano, y entrega gráficos, un mapa y un informe con la procedencia de cada número. Después, una evaluación mide si esas herramientas mejoran las respuestas frente a Claude Code sin ellas.
 
+El proyecto separa dos tipos de preguntas:
+- **Preguntas de investigación.** Muestran qué se puede aprender del Perú con estas fuentes. El informe responde la de arriba, y el agente puede abordar otras del mismo tipo:
+  - qué departamentos superan la pobreza nacional y qué tan grande es la brecha urbano-rural;
+  - cómo se movieron juntas la inflación y el tipo de cambio entre 2020 y 2024.
+- **Preguntas de evaluación.** Miden cuánto mejoran las respuestas al sumar los MCP, las skills y la verificación automática. Por eso cada una tiene una respuesta verificable fijada antes de correr (sección 9). Se complementan con pedidos ambiguos, imposibles o con premisas dudosas, donde lo correcto es pedir una aclaración, explicitar un supuesto o decir que no hay datos.
+
 ## 2. Arquitectura
 
 ```mermaid
@@ -154,7 +160,10 @@ Son 10 preguntas con respuesta verificable: 4 del BCRP, 4 de la ENAHO y 2 mixtas
   - Con solo el MCP acierta 8, porque repite los errores de la ENAHO del Modo A.
   - Con solo las skills acierta 10, porque llamó a la API del BCRP por su cuenta.
   - La primera versión de la ablación tenía fugas entre componentes, y se documenta cómo se corrigió.
-- **Robustez:** el Modo A cumplió la conducta esperada en 7 de 8 pedidos ambiguos o imposibles y el Modo B en 6. Ninguno inventó un dato inexistente.
+- **Robustez:** son 12 pedidos ambiguos, imposibles o con premisas dudosas, con la conducta esperada fijada antes de correr.
+  - El Modo A cumplió la conducta en 11 y el Modo B en 10. Ninguno inventó un dato inexistente.
+  - En los pedidos de causalidad y de dos fuentes de morosidad, la revisión manual aprobó a los dos modos.
+  - En el de frecuencias incompatibles, B correlacionó promedios mensuales con `comparar_series`. A dio como cifra principal la correlación con los datos diarios y usó el promedio mensual solo como control.
 
 Las tablas completas salen de `uv run evaluacion/analizar.py` → [`evaluacion/metricas.md`](evaluacion/metricas.md). Los datos están en [`resultados.csv`](evaluacion/resultados.csv) y [`robustez_resultados.csv`](evaluacion/robustez_resultados.csv).
 
@@ -196,7 +205,13 @@ Las salidas de la ENAHO regeneradas coinciden byte a byte con las versionadas.
 
 ## 12. Evidencias del uso de IA
 
-Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/), ordenadas por etapa (`mcp/`, `skills/`, `integracion/`, `evaluacion/`). Se exportaron con [`scripts/exportar_evidencias.py`](scripts/exportar_evidencias.py), que convierte las transcripciones JSONL de Claude Code en Markdown y oculta rutas personales, nombres de usuario, correos, claves y tokens.
+Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/):
+- la sesión de desarrollo completa;
+- los subagentes (`subagentes/`);
+- la demostración de encadenamiento de skills (`skills/`);
+- las corridas integradas (`integracion/`).
+
+Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaron con [`scripts/exportar_evidencias.py`](scripts/exportar_evidencias.py), que convierte las transcripciones JSONL de Claude Code en Markdown y oculta rutas personales, nombres de usuario, correos, claves y tokens.
 
 ## Innovaciones
 
@@ -209,6 +224,22 @@ Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/),
 | Pruebas de robustez | `tests/test_robustez_mcp.py` y `evaluacion/robustez.csv` |
 | Calidad al desactivar herramientas | modos `memoria`, `solo-mcp`, `solo-skills` y `sin-propia` de `evaluacion/evaluar.py` → `evaluacion/ablacion.md` |
 | Informes con tablas, gráficos y referencias | `armar_informe.py` agrega la trazabilidad y las referencias |
+
+## Trabajo futuro
+
+Para la entrega se mantuvo un alcance acotado: el BCRP de 2020 a 2024, la SBS a diciembre de 2024 y la ENAHO 2024. Estas ampliaciones abrirían preguntas nuevas:
+
+| Ampliación | Pregunta que permitiría responder |
+|---|---|
+| ENAHO de 2020 a 2024, con las validaciones de cada año | ¿Cómo evolucionó la pobreza junto con la inflación y el crecimiento? Hoy el informe combina tendencias nacionales con una sola fotografía territorial. |
+| Morosidad mensual de 2020 a 2024 junto a la inflación | ¿Los cambios de la inflación precedieron a los de la morosidad, y con qué rezago? |
+| Estadísticas financieras por departamento | ¿Los departamentos con más pobreza tienen indicadores financieros distintos? |
+
+- **Morosidad mensual.** El BCRP ya publica la serie mensual de la banca: `PN07746EM`, «Cartera atrasada neta / Colocaciones netas (%)», con fuente SBS, de enero de 2001 a diciembre de 2025.
+  - El MCP actual alcanza para consultarla.
+  - Falta que `comparar_series` admita rezagos.
+  - También falta contrastarla con la morosidad del boletín B-2401 de la SBS, que usa otra definición: créditos atrasados sobre créditos directos.
+- **Estadísticas por departamento.** El catálogo del MCP de la SBS no tiene boletines por departamento, así que haría falta otra fuente.
 
 ## Estructura
 

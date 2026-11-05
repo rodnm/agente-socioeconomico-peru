@@ -3,6 +3,9 @@
     uv run pytest tests/test_exportar.py
 """
 import importlib.util
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -90,6 +93,20 @@ def test_oculta_tambien_los_textos_indicados(exportar):
                uso("Bash", command="grep -n ilusionx evidencias_ia/")]
     md = exportar.a_markdown(eventos, "Sesión", extra=("ilusionx",))
     assert "ilusionx" not in md.lower() and md.count("[OCULTO]") == 3  # pedido, línea de tiempo y argumentos
+
+
+def test_un_texto_vacio_para_ocultar_no_cambia_nada(exportar):
+    assert exportar.a_markdown(EVENTOS, "Corrida", extra=("",)) == exportar.a_markdown(EVENTOS, "Corrida")
+
+
+def test_la_opcion_ocultar_se_puede_repetir(tmp_path):
+    origen, destino = tmp_path / "sesion.jsonl", tmp_path / "sesion.md"
+    origen.write_text(json.dumps({"type": "user", "message": {"content": "Ana Pérez y apz99 revisaron."}}) + "\n",
+                      encoding="utf-8")
+    subprocess.run([sys.executable, str(SCRIPT), str(origen), str(destino), "--ocultar", "ana pérez",
+                    "--ocultar", "APZ99"], check=True, capture_output=True)
+    md = destino.read_text(encoding="utf-8")
+    assert "Ana" not in md and "apz99" not in md and md.count("[OCULTO]") == 2
 
 
 def test_los_recordatorios_del_sistema_siguen_fuera(exportar):

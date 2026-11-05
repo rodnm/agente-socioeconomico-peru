@@ -42,7 +42,7 @@ PEGADO = re.compile(r"<pasted_content[^>]*>\n?(.*?)\n?</pasted_content[^>]*>", r
 def ocultar(texto, extra=()):
     for patron, reemplazo in OCULTAR:
         texto = patron.sub(reemplazo, texto)
-    for literal in extra:
+    for literal in filter(None, extra):  # un texto vacío coincidiría entre cada par de caracteres
         texto = re.sub(re.escape(literal), "[OCULTO]", texto, flags=re.IGNORECASE)
     usuario = os.environ.get("USERNAME") or os.environ.get("USER")
     return re.sub(rf"\b{re.escape(usuario)}\b", "[USUARIO]", texto) if usuario else texto

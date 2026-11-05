@@ -1,6 +1,7 @@
 """Convierte transcripciones de Claude Code (JSONL) en Markdown legible y sin datos sensibles, para evidencias_ia/.
 
     uv run scripts/exportar_evidencias.py ORIGEN.jsonl evidencias_ia/skills/01_encadenamiento.md [--titulo T]
+        [--ocultar TEXTO ...]
 
 Acepta las sesiones que Claude Code guarda en ~/.claude/projects/<proyecto>/<sesión>.jsonl y la salida de
 `claude -p --output-format stream-json --verbose`. Empieza con una línea de tiempo de las herramientas usadas, con
@@ -34,11 +35,15 @@ GENERADO_POR_CLAUDE_CODE = {
         "Resumen automático de la parte anterior de la sesión (Claude Code compactó el contexto)"),
 }
 AVISO_DE_LIMITE = re.compile(r"\[(Usage limit reached|Earlier usage-limit notes)")
+# Claude Code envuelve lo que la persona pega; sin quitar la envoltura, el pedido parecería un aviso del sistema.
+PEGADO = re.compile(r"<pasted_content[^>]*>\n?(.*?)\n?</pasted_content[^>]*>", re.DOTALL)
 
 
-def ocultar(texto):
+def ocultar(texto, extra=()):
     for patron, reemplazo in OCULTAR:
         texto = patron.sub(reemplazo, texto)
+    for literal in extra:
+        texto = re.sub(re.escape(literal), "[OCULTO]", texto, flags=re.IGNORECASE)
     usuario = os.environ.get("USERNAME") or os.environ.get("USER")
     return re.sub(rf"\b{re.escape(usuario)}\b", "[USUARIO]", texto) if usuario else texto
 
@@ -53,7 +58,7 @@ def bloques(contenido):
     return [{"type": "text", "text": contenido}] if isinstance(contenido, str) else contenido or []
 
 
-def linea_de_tiempo(eventos):
+def linea_de_tiempo(eventos, extra=()):
     """Las herramientas en el orden en que se usaron, con los servidores MCP y las skills que intervinieron."""
     pasos, servidores, skills = [], [], []
     for e in eventos:
@@ -71,7 +76,7 @@ def linea_de_tiempo(eventos):
                 servidores.append(servidor)
                 pasos.append(f"MCP `{servidor}.{herramienta}`")
             elif nombre == "Bash":
-                comando = ocultar((entrada.get("command") or "").strip().splitlines()[0])[:90].replace("`", "'")
+                comando = ocultar((entrada.get("command") or "").strip().splitlines()[0], extra)[:90].replace("`", "'")
                 pasos.append(f"Bash `{comando}`")
             else:
                 pasos.append(f"`{nombre}`")
@@ -84,8 +89,8 @@ def linea_de_tiempo(eventos):
              ""] + [f"{i}. {p}" for i, p in enumerate(pasos, 1)] + [""])
 
 
-def a_markdown(eventos, titulo, pedido=None):
-    lineas, turno = [f"# {titulo}", "", *linea_de_tiempo(eventos)], 0
+def a_markdown(eventos, titulo, pedido=None, extra=()):
+    lineas, turno = [f"# {titulo}", "", *linea_de_tiempo(eventos, extra)], 0
     if pedido:  # claude -p no emite el pedido inicial como evento
         turno = 1
         lineas += ["## 1. Pedido (claude -p)", "", pedido, ""]
@@ -100,29 +105,31 @@ def a_markdown(eventos, titulo, pedido=None):
             continue
         for b in bloques(mensaje.get("content")):
             if b.get("type") == "text" and b.get("text", "").strip():
-                if tipo == "user" and (b["text"].lstrip().startswith("<") or AVISO_DE_LIMITE.match(b["text"])):
+                texto = PEGADO.sub(r"*Texto pegado:*\n\n\1", b["text"]) if tipo == "user" else b["text"]
+                if tipo == "user" and (texto.lstrip().startswith("<") or AVISO_DE_LIMITE.match(texto)):
                     continue  # recordatorios y avisos del sistema, no lo que escribió la persona
                 generado = next((t for inicio, t in GENERADO_POR_CLAUDE_CODE.items()
-                                 if tipo == "user" and b["text"].startswith(inicio)), None)
+                                 if tipo == "user" and texto.startswith(inicio)), None)
                 if generado:
-                    lineas += [f"<details><summary>{generado}</summary>", "", "```markdown", b["text"].strip(), "```",
+                    lineas += [f"<details><summary>{generado}</summary>", "", "```markdown", texto.strip(), "```",
                                "</details>", ""]
                     continue
                 turno += 1 if tipo == "user" else 0
                 quien = f"## {turno}. Pedido" if tipo == "user" else "**Claude:**"
                 lineas += [f"{quien} {('· ' + cuando + ' UTC') if cuando and tipo == 'user' else ''}".rstrip(), "",
-                           b["text"].strip(), ""]
+                           texto.strip(), ""]
             elif b.get("type") == "tool_use":
                 argumentos = json.dumps(b.get("input"), ensure_ascii=False, indent=1)
-                lineas += [f"**Herramienta:** `{b.get('name')}`", "", "```json", recortar(argumentos, LIMITE_ARGUMENTOS),
-                           "```", ""]
+                # Se oculta antes de recortar: un correo cortado a la mitad ya no lo reconoce el patrón.
+                lineas += [f"**Herramienta:** `{b.get('name')}`", "", "```json",
+                           recortar(ocultar(argumentos, extra), LIMITE_ARGUMENTOS), "```", ""]
             elif b.get("type") == "tool_result":
                 contenido = b.get("content")
                 texto = "\n".join(c.get("text", "") for c in contenido if isinstance(c, dict)) if isinstance(
                     contenido, list) else str(contenido)
                 lineas += ["<details><summary>Resultado de la herramienta</summary>", "", "```text",
-                           recortar(texto, LIMITE_RESULTADO), "```", "</details>", ""]
-    return ocultar("\n".join(lineas))
+                           recortar(ocultar(texto, extra), LIMITE_RESULTADO), "```", "</details>", ""]
+    return ocultar("\n".join(lineas), extra)
 
 
 def main():
@@ -132,10 +139,13 @@ def main():
     p.add_argument("destino", type=Path)
     p.add_argument("--titulo", default=None)
     p.add_argument("--pedido", default=None, help="El pedido de una corrida claude -p, que no queda en su salida.")
+    p.add_argument("--ocultar", action="append", default=[], metavar="TEXTO",
+                   help="Otro texto que se reemplaza por [OCULTO], sin distinguir mayúsculas; por ejemplo, el usuario "
+                        "de un correo que aparece sin la @. Se puede repetir.")
     a = p.parse_args()
     eventos = [json.loads(l) for l in a.origen.read_text(encoding="utf-8").splitlines() if l.startswith("{")]
     a.destino.parent.mkdir(parents=True, exist_ok=True)
-    a.destino.write_text(a_markdown(eventos, a.titulo or a.destino.stem.replace("_", " "), a.pedido),
+    a.destino.write_text(a_markdown(eventos, a.titulo or a.destino.stem.replace("_", " "), a.pedido, a.ocultar),
                          encoding="utf-8")
     print(f"{a.destino.as_posix()}: {len(eventos)} eventos exportados")
 

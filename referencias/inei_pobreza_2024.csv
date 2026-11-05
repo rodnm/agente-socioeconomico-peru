@@ -1,0 +1,33 @@
+ambito,ccdd,valor,ic_inf,ic_sup,cv,cuadro,pagina,nota
+Nacional,,27.6,26.6,28.6,1.9,Cuadro III.1,219,
+Urbana,,24.8,23.6,26.0,2.5,Cuadro III.1,219,
+Rural,,39.3,37.6,41.0,2.1,Cuadro III.1,219,
+Pobreza extrema,,5.5,5.0,6.0,4.5,Cuadro III.4,72,
+Lima Metropolitana con Callao,,28.2,25.9,30.6,4.2,Cuadro III.1,219,Dominio 8 (Lima Metropolitana y Callao)
+Lima Metropolitana,1501,27.6,25.0,30.1,4.7,Cuadro III.1,220,Incluye los 43 distritos de la provincia de Lima (provincia 1501)
+Lima provincias,15_resto,21.7,18.3,25.1,8.0,Cuadro III.1,220,Provincias de Barranca Cajatambo Canta Cañete Huaral Huarochirí Huaura Oyón y Yauyos
+Amazonas,01,25.7,20.9,30.6,9.6,Cuadro III.1,220,
+Áncash,02,22.8,19.1,26.4,8.2,Cuadro III.1,220,
+Apurímac,03,24.0,19.3,28.6,9.8,Cuadro III.1,220,
+Arequipa,04,15.8,12.6,19.0,10.3,Cuadro III.1,220,
+Ayacucho,05,32.8,28.3,37.3,7.0,Cuadro III.1,220,
+Cajamarca,06,45.0,40.7,49.3,4.8,Cuadro III.1,220,
+Callao,07,33.9,29.1,38.6,7.1,Cuadro III.1,220,Provincia Constitucional del Callao
+Cusco,08,18.5,14.7,22.4,10.5,Cuadro III.1,220,
+Huancavelica,09,33.4,29.1,37.7,6.6,Cuadro III.1,220,
+Huánuco,10,39.0,33.9,44.0,6.5,Cuadro III.1,220,
+Ica,11,6.0,4.2,7.9,15.6,Cuadro III.1,220,referencial (CV > 15%)
+Junín,12,18.5,14.9,22.1,9.9,Cuadro III.1,220,
+La Libertad,13,30.2,26.6,33.8,6.1,Cuadro III.1,220,
+Lambayeque,14,14.0,10.3,17.8,13.7,Cuadro III.1,220,
+Loreto,16,43.0,38.8,47.2,5.0,Cuadro III.1,220,
+Madre de Dios,17,11.1,6.8,15.5,19.5,Cuadro III.1,220,referencial (CV > 15%)
+Moquegua,18,11.0,7.5,14.5,16.3,Cuadro III.1,220,referencial (CV > 15%)
+Pasco,19,39.0,34.0,44.0,6.5,Cuadro III.1,220,
+Piura,20,31.9,28.6,35.1,5.2,Cuadro III.1,220,
+Puno,21,39.9,35.4,44.5,5.8,Cuadro III.1,220,
+San Martín,22,22.0,18.1,25.9,9.0,Cuadro III.1,220,
+Tacna,23,24.0,18.3,29.6,11.9,Cuadro III.1,220,
+Tumbes,24,26.9,22.1,31.7,9.1,Cuadro III.1,220,
+Ucayali,25,27.1,22.7,31.4,8.1,Cuadro III.1,220,
+Lima (departamento completo),15,27.1,,,,Requisito de consigna del curso,,Requisito de consigna (cálculo ponderado del curso no publicado en conjunto por el INEI)

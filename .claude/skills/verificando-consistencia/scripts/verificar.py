@@ -64,10 +64,12 @@ def verificar_enaho(reg):
                 f"urbana {urbana:.2f}, nacional {nacional:.2f}, rural {rural:.2f}")
 
     departamentos = t[t.index.str.startswith("pobreza_dep_")].rename(lambda i: i[-2:])
-    referencia = pd.read_csv(RAIZ / "referencias" / "pobreza_departamento_2024.csv",
-                             dtype={"ccdd": str}).set_index("ccdd")["pobreza_pct"]
+    ref_df = pd.read_csv(RAIZ / "referencias" / "inei_pobreza_2024.csv", dtype={"ccdd": str})
+    referencia = (ref_df.dropna(subset=["ccdd"])
+                  .query("ccdd.str.len() == 2")
+                  .set_index("ccdd")["valor"].astype(float))
     alejados = (departamentos - referencia).abs().loc[lambda d: d > TOLERANCIA_ENAHO]
-    reg.agregar("ENAHO", "Departamentos de limpiando-enaho frente a la referencia de la sesión 16",
+    reg.agregar("ENAHO", "Departamentos de limpiando-enaho frente al informe técnico del INEI",
                 "OK" if alejados.empty and len(departamentos) == 25 else "FALLA",
                 f"{len(departamentos)} departamentos; {len(alejados)} fuera de ±{TOLERANCIA_ENAHO}")
     mapa = SALIDAS / "mapa_vs_referencia.csv"
@@ -99,7 +101,8 @@ def verificar_bcrp(reg, anio):
             ("resumen", {"codigo": IPC_12_MESES, "desde": desde, "hasta": hasta})]))
     except Exception as e:
         motivo = str(e).splitlines()[0][:200]
-        explicacion = ("La serie no cubre ese periodo; revisa el código con buscar_series." if "no tiene datos" in motivo
+        es_cobertura = "no tiene datos" in motivo
+        explicacion = ("La serie no cubre ese periodo; revisa el código con buscar_series." if es_cobertura
                        else "El BCRP no respondió con datos.") + " No se estima nada en su lugar."
         for v in ("Inflación a 12 meses recalculada desde el índice", "resumen frente a serie"):
             reg.agregar("BCRP", v, "NO VERIFICABLE", motivo, explicacion)

@@ -14,7 +14,7 @@ from matplotlib.colors import LinearSegmentedColormap
 RAIZ = Path(__file__).resolve().parents[4]
 BASE = RAIZ / "salidas" / "personas_2024.parquet"
 GEOJSON = RAIZ / "datos" / "peru_departamental_simple.geojson"
-REFERENCIA = RAIZ / "referencias" / "pobreza_departamento_2024.csv"
+REFERENCIA = RAIZ / "referencias" / "inei_pobreza_2024.csv"
 DESTINO = RAIZ / "mapas" / "pobreza_departamento.png"
 COMPARACION = RAIZ / "salidas" / "mapa_vs_referencia.csv"
 
@@ -51,18 +51,19 @@ def unir_con_limites(tasas: pd.DataFrame, limites: gpd.GeoDataFrame) -> gpd.GeoD
 
 
 def comprobar_referencia(mapa: gpd.GeoDataFrame) -> None:
-    """Contrasta cada departamento con la referencia de la sesión 16 y deja la tabla en salidas/."""
-    referencia = pd.read_csv(REFERENCIA, dtype={"ccdd": str}).set_index("ccdd")["pobreza_pct"]
+    """Contrasta cada departamento con las cifras oficiales del INEI y deja la tabla en salidas/."""
+    ref_df = pd.read_csv(REFERENCIA, dtype={"ccdd": str})
+    ref_deps = ref_df[ref_df["ccdd"].isin(mapa["departamento"])].set_index("ccdd")["valor"].astype(float)
     calculada = mapa.set_index("departamento")["pobreza_pct"]
-    diferencia = (calculada - referencia).abs()
+    diferencia = (calculada - ref_deps).abs()
     tabla = pd.DataFrame({"departamento": mapa.set_index("departamento")["NOMBDEP"], "pobreza_pct": calculada.round(2),
-                          "referencia_sesion16": referencia, "diferencia": diferencia.round(2)})
+                          "referencia_inei": ref_deps, "diferencia": diferencia.round(2)})
     tabla["dentro_de_tolerancia"] = tabla["diferencia"] <= TOLERANCIA
     COMPARACION.parent.mkdir(exist_ok=True)
     tabla.rename_axis("ccdd").sort_index().to_csv(COMPARACION, encoding="utf-8")
     alejados = diferencia[diferencia > TOLERANCIA]
     if not alejados.empty:
-        sys.exit(f"Estos departamentos difieren más de {TOLERANCIA} puntos de la referencia: {alejados.round(2).to_dict()}.")
+        sys.exit(f"Estos departamentos difieren más de {TOLERANCIA} puntos de la referencia del INEI: {alejados.round(2).to_dict()}.")
 
 
 def dibujar(mapa: gpd.GeoDataFrame) -> None:

@@ -5,6 +5,8 @@ pobreza_extrema,Pobreza extrema,Nacional,5.5045,% de personas,factor07 × mieper
 pobreza_area_urbana,Pobreza monetaria,Urbana,24.807,% de personas,factor07 × mieperho (por hogar),22031,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"
 pobreza_area_rural,Pobreza monetaria,Rural,39.3028,% de personas,factor07 × mieperho (por hogar),11660,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"
 pobreza_lima_metropolitana,Pobreza monetaria,Lima Metropolitana,28.2117,% de personas,factor07 × mieperho (por hogar),4090,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"
+pobreza_lima_metropolitana_provincia,Pobreza monetaria,Lima Metropolitana (provincia),27.5845,% de personas,factor07 × mieperho (por hogar),3063,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"
+pobreza_lima_provincias,Pobreza monetaria,Lima provincias,21.7156,% de personas,factor07 × mieperho (por hogar),1481,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"
 pobreza_dep_01,Pobreza monetaria,Amazonas,25.7488,% de personas,factor07 × mieperho (por hogar),1243,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"
 pobreza_dep_02,Pobreza monetaria,Áncash,22.7746,% de personas,factor07 × mieperho (por hogar),1393,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"
 pobreza_dep_03,Pobreza monetaria,Apurímac,23.9587,% de personas,factor07 × mieperho (por hogar),913,"INEI, ENAHO 2024, módulos 34 y 02; limpiando-enaho/limpiar.py"

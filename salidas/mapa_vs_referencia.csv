@@ -1,4 +1,4 @@
-ccdd,departamento,pobreza_pct,referencia_sesion16,diferencia,dentro_de_tolerancia
+ccdd,departamento,pobreza_pct,referencia_inei,diferencia,dentro_de_tolerancia
 01,AMAZONAS,25.75,25.7,0.05,True
 02,ANCASH,22.77,22.8,0.03,True
 03,APURIMAC,23.96,24.0,0.04,True

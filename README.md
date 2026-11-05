@@ -1,8 +1,8 @@
 # Agente de investigación socioeconómica del Perú
 
-Tarea 4 del curso Python Intermedio ([enunciado](https://github.com/d2cml-ai/Data-Science-Python/issues/201)). Es un agente en Claude Code que responde preguntas sobre la economía y la pobreza del Perú con datos oficiales: series del BCRP por un servidor MCP propio, boletines de la SBS por un segundo MCP y microdatos de la ENAHO 2024 del INEI por Skills. Cada cifra del informe sale de una herramienta y se puede rastrear hasta su fuente.
+Tarea 4 del curso Python Intermedio ([enunciado](https://github.com/d2cml-ai/Data-Science-Python/issues/201)). Es un agente en Claude Code que responde preguntas sobre la economía y la pobreza del Perú con datos oficiales: series del BCRP por un servidor MCP propio, boletines de la SBS por un segundo MCP y microdatos de la ENAHO 2020-2024 del INEI por Skills. Cada cifra del informe sale de una herramienta y se puede rastrear hasta su fuente.
 
-**Pregunta de investigación:** ¿Cómo evolucionaron la inflación y la actividad económica del Perú entre 2020 y 2024, y qué brechas territoriales y urbano-rurales presentaba la pobreza monetaria en 2024?
+**Pregunta de investigación:** ¿Cómo evolucionaron la inflación, la actividad económica, la morosidad bancaria y la pobreza monetaria del Perú entre 2020 y 2024, y qué brechas territoriales y urbano-rurales presentaba la pobreza monetaria en 2024?
 
 | Entregable | Archivo |
 |---|---|
@@ -30,7 +30,7 @@ flowchart LR
     U[Pregunta en lenguaje natural] --> A[Claude Code<br/>reglas en CLAUDE.md]
     A -->|MCP| B[bcrp<br/>mcp/server.py]
     A -->|MCP| S[sbs<br/>mcp-sbs-peru]
-    A -->|Skills| E[limpiando · graficando · mapeando<br/>ENAHO 2024]
+    A -->|Skills| E[limpiando · graficando · mapeando<br/>ENAHO 2020-2024]
     B --> API[(API del BCRP)]
     S --> SBS[(Boletines de la SBS)]
     E --> INEI[(Microdatos del INEI)]
@@ -74,8 +74,8 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 
 | Skill | Qué hace |
 |---|---|
-| **`limpiando-enaho`** | Lee los módulos 34 (sumaria) y 02 (miembros) con las llaves como texto, filtra a los residentes habituales (`((p204==1)&(p205==2))\|((p204==2)&(p206==1))`), une con `merge(..., validate="m:1")` y define `urbano = estrato <= 5` y `pobre = pobreza <= 2`. Pondera por hogar (`factor07 × mieperho`) para las cifras nacionales, por área y por departamento, y por persona (`facpob07`) para sexo y edad. Escribe `salidas/validacion.txt` y se detiene si una validación esencial falla, sin dejar la base. |
-| **`graficando-enaho`** | Grafica la pobreza por área, sexo, edad o departamento con títulos que dicen el hallazgo, unidad, periodo y fuente. Si falta la base procesada, primero corre `limpiando-enaho`. |
+| **`limpiando-enaho`** | Lee los módulos 34 (sumaria) y 02 (miembros) de 2020 a 2024 con las llaves como texto, filtra a los residentes habituales (`((p204==1)&(p205==2))\|((p204==2)&(p206==1))`), une con `merge(..., validate="m:1")` y define `urbano = estrato <= 5` y `pobre = pobreza <= 2`. Pondera por hogar (`factor07 × mieperho`) para las cifras oficiales nacionales, de área y departamentales, y por persona (`facpob07`) para sexo y edad. Valida contra metas oficiales del INEI (Informe Técnico 2025), escribe `salidas/validacion.txt` y genera `salidas/indicadores.csv` con cobertura multianual (columna `anio`). |
+| **`graficando-enaho`** | Grafica la pobreza por área, sexo, edad o departamento, y la serie temporal de evolución 2020-2024 (`figuras/pobreza_serie_2020_2024.png`) con títulos informativos, unidad, periodo y fuente. Si falta la base procesada o los indicadores, corre `limpiando-enaho`. |
 | **`mapeando-enaho`** | Hace los mapas departamental (25 departamentos) y de ámbitos territoriales (26 ámbitos con Lima desagregada) uniendo `ubigeo[:2]` con `FIRST_IDDP` sobre límites oficiales del IGN. Compara cada departamento con el informe técnico oficial del INEI en `salidas/mapa_vs_referencia.csv`. |
 | `descargando-enaho` | Baja los zip de microdatos del INEI a `datos/`. |
 | ★ `informando-peru` | Arma el informe con marcadores, tabla de trazabilidad y referencias (ver la sección 2). |
@@ -85,8 +85,8 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 
 | Fuente | Enlace | Cómo se obtiene |
 |---|---|---|
-| ENAHO 2024, módulo 34 (sumaria) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip> | `descargando-enaho` |
-| ENAHO 2024, módulo 02 (miembros del hogar) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip> | `descargando-enaho` |
+| ENAHO 2020-2024, módulo 34 (sumaria) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip> | `descargando-enaho` |
+| ENAHO 2020-2024, módulo 02 (miembros del hogar) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip> | `descargando-enaho` |
 | Límites oficiales del IGN (25 departamentos y 26 ámbitos) | [`referencias/limites_departamentales_ign.geojson`](referencias/limites_departamentales_ign.geojson) | incluidos en el repositorio (`scripts/preparar_limites.py`, COD-AB) |
 | Series del BCRP | API: `https://estadisticas.bcrp.gob.pe/estadisticas/series/api/{código}/json/{desde}/{hasta}` ([documentación](https://estadisticas.bcrp.gob.pe/estadisticas/series/documentos/bcrpdataapi.pdf)) | servidor `bcrp`, al consultar |
 | Boletines de la SBS | archivos oficiales de la SBS; cada respuesta del servidor trae la URL del boletín ([detalle](https://github.com/rodnm/mcp-sbs-peru)) | servidor `sbs`, al consultar |
@@ -126,11 +126,11 @@ Para registrarlo en otro proyecto: `claude mcp add bcrp -- uv run --directory <r
 ## 8. Reproducir el procesamiento y las pruebas
 
 ```bash
-# Datos de la ENAHO y procesamiento
-uv run .claude/skills/descargando-enaho/scripts/descargar.py --anio 2024
-uv run .claude/skills/limpiando-enaho/scripts/limpiar.py --anio 2024        # salidas/validacion.txt
-uv run .claude/skills/graficando-enaho/scripts/graficar.py --por area        # también sexo, edad, departamento
-uv run .claude/skills/mapeando-enaho/scripts/mapear.py                       # mapas/pobreza_departamento.png
+# Datos de la ENAHO y procesamiento (soporta --anio 2020..2024 o --todos)
+uv run .claude/skills/descargando-enaho/scripts/descargar.py --todos
+uv run .claude/skills/limpiando-enaho/scripts/limpiar.py --todos           # salidas/indicadores.csv (2020-2024) y salidas/validacion.txt
+uv run .claude/skills/graficando-enaho/scripts/graficar.py                 # genera cortes transversales y figuras/pobreza_serie_2020_2024.png
+uv run .claude/skills/mapeando-enaho/scripts/mapear.py                     # mapas/pobreza_departamento.png y pobreza_ambitos.png
 
 # Pruebas
 uv run pytest mcp/test_server.py      # las 8 originales de la sesión 04 y 2 nuevas, contra la API real: 10 passed
@@ -186,28 +186,27 @@ Las tablas completas salen de `uv run evaluacion/analizar.py` → [`evaluacion/m
 
 ## 11. Ejemplo de una ejecución completa
 
-Una sola ejecución desde la raíz del repo, con las salidas de la ENAHO borradas para que el agente tuviera que generarlas:
+Una sola ejecución integrada desde la raíz del repositorio respondiendo la pregunta completa (series 2020-2024, morosidad SBS/BCRP y límites IGN):
 
 ```bash
-claude -p "Investiga esta pregunta y entrégame el informe: ¿Cómo evolucionaron la inflación y la actividad económica del Perú entre 2020 y 2024, y qué brechas territoriales y urbano-rurales presentaba la pobreza monetaria en 2024? Usa el BCRP para la inflación y la actividad, la SBS para el contexto financiero de 2024 y la ENAHO 2024 para la pobreza por área y por departamento, con su mapa. Al final verifica la consistencia de las cifras." \
-  --model sonnet --strict-mcp-config --mcp-config .mcp.json \
-  --allowedTools "Skill,Bash(uv run *),Read,Write,Edit,Glob,Grep,mcp__bcrp,mcp__sbs" \
-  --output-format stream-json --verbose > corrida.jsonl
+claude -p "Investiga esta pregunta y entrégame el informe: ¿Cómo evolucionaron la inflación, la actividad económica, la morosidad bancaria y la pobreza monetaria del Perú entre 2020 y 2024, y qué brechas territoriales y urbano-rurales presentaba la pobreza en 2024? Usa el BCRP para la inflación, la actividad y la morosidad neta, la SBS para la morosidad bancaria 2020-2024 y el contexto financiero, y la ENAHO para la serie de pobreza 2020-2024 y la foto territorial de 2024 con sus mapas. Al final verifica la consistencia de las cifras." \
+  --output-format stream-json --verbose \
+  --allowedTools "Skill,Bash,Read,Write,Edit,Glob,Grep,mcp__bcrp,mcp__sbs" > corrida4.jsonl
 ```
 
-Usó 2 servidores MCP y 5 skills en 41 turnos, 188 segundos y USD 0.76. La transcripción completa, con su línea de tiempo, está en [`evidencias_ia/integracion/03_corrida_final_mcp_y_skills.md`](evidencias_ia/integracion/03_corrida_final_mcp_y_skills.md). En resumen:
+Usó 2 servidores MCP (`bcrp`, `sbs`) y 3 skills en 63 turnos, 485 segundos, 59 llamadas a herramientas y USD 2.80. La transcripción completa, con su línea de tiempo, está en [`evidencias_ia/integracion/04_corrida_final_series_2020_2024.md`](evidencias_ia/integracion/04_corrida_final_series_2020_2024.md). En resumen:
 
 | Pasos | Herramienta | Resultado |
 |---|---|---|
 | 1 | skill `informando-peru` | carga el procedimiento del informe |
-| 4–5 | MCP `bcrp.buscar_series` | elige `PN01273PM` (IPC de Lima, a 12 meses) y `PN01728AM` (PBI, interanual) |
-| 7, 11 | skill `limpiando-enaho` | reconstruye la base; 45 validaciones OK |
-| 8–9, 16 | MCP `bcrp.resumen`, `bcrp.comparar_series` | extremos, promedios y correlación de las dos series |
-| 10, 18–19 | MCP `sbs.indicadores`, `sbs.ranking` | morosidad de bancos y cajas, y concentración del crédito |
-| 12–13, 17 | skills `graficando-enaho` y `mapeando-enaho` | gráficos por área y departamento, y el mapa |
-| 14–15 | MCP `bcrp.graficar_serie` | gráficos de la inflación y del PBI |
-| 23–26 | `armar_informe.py` | [`informes/informe_final.md`](informes/informe_final.md), con 41 cifras trazadas |
-| 27–28 | skill `verificando-consistencia` | [`salidas/consistencia.md`](salidas/consistencia.md): 8 de 8 OK |
+| 8–9, 11–17 | MCP `bcrp.buscar_series` | localiza `PN01273PM` (inflación), `PM04863AA` y `PN01728AM` (PBI) y `PN07746EM` (morosidad neta) |
+| 18, 21–24 | MCP `bcrp.resumen`, `bcrp.serie` | extremos, promedios y series anuales y mensuales |
+| 25–31, 34, 36 | MCP `sbs.indicadores`, `sbs.ranking` | morosidad histórica 2020-2024, ROE, capital global, morosidad de cajas y concentración |
+| 37–40 | MCP `bcrp.graficar_serie` | genera gráficos de inflación, PBI y morosidad bancaria |
+| 10, 49–50 | `armar_informe.py` | [`informes/informe_final.md`](informes/informe_final.md), con 79 cifras trazadas sin ninguna escrita a mano |
+| 41, 51–52 | skill `verificando-consistencia` | [`salidas/consistencia.md`](salidas/consistencia.md): 8 OK, 1 DIFERENCIA (morosidad SBS vs BCRP esperada), 0 FALLA |
+
+(La corrida preliminar previa con alcance 2024 se conserva en [`evidencias_ia/integracion/03_corrida_final_mcp_y_skills.md`](evidencias_ia/integracion/03_corrida_final_mcp_y_skills.md)).
 
 Las salidas tabulares (CSV) de la ENAHO regeneradas coinciden byte a byte con las versionadas.
 
@@ -235,7 +234,7 @@ Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaro
 
 ## Trabajo futuro
 
-Para la entrega se mantuvo un alcance acotado: el BCRP de 2020 a 2024, la SBS a diciembre de 2024 y la ENAHO 2024. Estas ampliaciones abrirían preguntas nuevas:
+Para la entrega se mantuvo un alcance acotado: el BCRP de 2020 a 2024, la SBS a diciembre de 2024 y la ENAHO 2020-2024. Estas ampliaciones abrirían preguntas nuevas:
 
 | Ampliación | Pregunta que permitiría responder |
 |---|---|

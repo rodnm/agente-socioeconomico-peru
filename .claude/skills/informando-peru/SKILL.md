@@ -12,12 +12,12 @@ El informe se escribe en dos pasos: Claude redacta un borrador con **marcadores*
 1. **Plan.** Escribe `informes/plan_analisis.md`: la pregunta ($ARGUMENTS), qué series del BCRP y qué indicadores de la ENAHO la responden, y qué gráficos hacen falta.
 2. **Insumos.** Comprueba que existan. Si falta alguno, invoca la skill indicada con la herramienta Skill, no corras su script por tu cuenta: la skill trae sus propias reglas, como detenerse si una validación falla.
    - `salidas/indicadores.csv` → `limpiando-enaho`.
-   - `figuras/pobreza_por_<corte>.png` → `graficando-enaho`.
-   - `mapas/pobreza_departamento.png` → `mapeando-enaho`.
+   - `figuras/pobreza_por_<corte>.png` y `figuras/pobreza_serie_2020_2024.png` → `graficando-enaho`.
+   - `mapas/pobreza_departamento.png` y `mapas/pobreza_ambitos.png` → `mapeando-enaho`.
    - El gráfico del BCRP → herramienta MCP `graficar_serie`.
    Consulta las series con las herramientas MCP (`buscar_series`, `resumen`, `comparar_series`) para decidir qué decir; anota los argumentos exactos que usaste.
 3. **Borrador.** Copia [plantilla.md](plantilla.md) a `informes/borrador.md` y redáctalo con las 7 secciones. **Cada cifra va como marcador**:
-   - `{{enaho.pobreza_nacional}}`: el `id` de `salidas/indicadores.csv` (lista completa en la referencia de `limpiando-enaho`).
+   - `{{enaho.pobreza_nacional}}`: el `id` de `salidas/indicadores.csv` (año 2024 por defecto; admite selector como `{{enaho.pobreza_nacional:2020}}`).
    - `{{bcrp.resumen(codigo=PN01273PM, desde=2024-01, hasta=2024-12).ultimo.valor|2}}`: la herramienta, sus argumentos y el campo de la respuesta; `|2` son los decimales.
    - `{{bcrp.comparar_series(codigo_a=..., codigo_b=..., desde=..., hasta=...).correlacion|2}}`, `{{sbs.<herramienta>(...).<campo>}}`: igual con cualquier servidor de `.mcp.json`.
    - `{{lit:0.1 puntos}}`: solo para constantes metodológicas (tolerancias, umbrales), que quedan declaradas como escritas a mano.

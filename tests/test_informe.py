@@ -34,6 +34,13 @@ def test_resuelve_indicadores_y_agrega_trazabilidad(tmp_path):
     assert "factor07 × mieperho" in texto and "«0.1 puntos»" in texto
 
 
+def test_resuelve_indicadores_con_selector_de_anio(tmp_path):
+    r, salida = armar(tmp_path, "La pobreza en 2020 fue {{enaho.pobreza_nacional:2020}} % y en 2024 fue {{enaho.pobreza_nacional}} %.\n")
+    assert r.returncode == 0, r.stderr
+    texto = salida.read_text(encoding="utf-8")
+    assert "La pobreza en 2020 fue 30.1 % y en 2024 fue 27.6 %." in texto
+
+
 def test_referencias_en_formato_apa7(tmp_path):
     r, salida = armar(tmp_path, "La pobreza fue {{enaho.pobreza_nacional}} %.\n")
     assert r.returncode == 0, r.stderr

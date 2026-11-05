@@ -16,7 +16,9 @@ if str(RAIZ / "scripts") not in sys.path:
     sys.path.insert(0, str(RAIZ / "scripts"))
 import estilo_graficos
 BASE = RAIZ / "salidas" / "personas_2024.parquet"
+INDICADORES = RAIZ / "salidas" / "indicadores.csv"
 FIGURAS = RAIZ / "figuras"
+DESTINO_SERIE = FIGURAS / "pobreza_serie_2020_2024.png"
 
 LLAVES_HOGAR = ["conglome", "vivienda", "hogar"]
 
@@ -139,25 +141,99 @@ def dibujar(tasas: pd.Series, tema: str, nota: str, titulo: str, destino: Path, 
     plt.close(figura)
 
 
+def graficar_serie_pobreza(ruta_indicadores: Path = INDICADORES, destino: Path = DESTINO_SERIE) -> Path:
+    """Genera la figura de evolución temporal 2020-2024 de pobreza por área y ámbito."""
+    if not ruta_indicadores.is_file():
+        sys.exit(f"Falta {ruta_indicadores.name} en salidas/. Créala primero con la skill limpiando-enaho.")
+    df = pd.read_csv(ruta_indicadores)
+    if "anio" not in df.columns:
+        sys.exit(f"Falta la columna anio en {ruta_indicadores.name}.")
+
+    figura, eje = plt.subplots(figsize=(8.5, 5.5), facecolor=estilo_graficos.COLOR_FONDO)
+    eje.set_facecolor(estilo_graficos.COLOR_FONDO)
+
+    series_config = [
+        ("pobreza_nacional", "Nacional", "#0d366b", 2.6, "-", "o"),
+        ("pobreza_area_rural", "Rural", "#c0392b", 2.0, "-", "s"),
+        ("pobreza_area_urbana", "Urbana", "#256abf", 2.0, "-", "^"),
+        ("pobreza_lima_metropolitana_provincia", "Lima Metropolitana (prov.)", "#7b1fa2", 1.8, "--", "D"),
+        ("pobreza_lima_provincias", "Lima Provincias", "#2e7d32", 1.8, "--", "v"),
+    ]
+
+    anios = sorted(df["anio"].dropna().astype(int).unique())
+
+    for id_serie, etiqueta, color, ancho, estilo_linea, marcador in series_config:
+        sub = df[df["id"] == id_serie].sort_values("anio")
+        if sub.empty:
+            continue
+        x = sub["anio"].to_numpy()
+        y = sub["valor"].to_numpy()
+        eje.plot(x, y, label=etiqueta, color=color, linewidth=ancho, linestyle=estilo_linea,
+                 marker=marcador, markersize=5.5)
+        for i_pt in (0, len(x) - 1):
+            if i_pt < len(x):
+                desplazamiento = 6 if id_serie != "pobreza_lima_provincias" else -12
+                eje.annotate(f"{y[i_pt]:.1f} %", (x[i_pt], y[i_pt]),
+                             textcoords="offset points", xytext=(0, desplazamiento),
+                             ha="center", fontsize=8.5, color=color, fontweight="bold",
+                             bbox={"facecolor": estilo_graficos.COLOR_FONDO, "edgecolor": "none", "pad": 0.3})
+
+    eje.set_xticks(anios)
+    eje.set_xticklabels([str(a) for a in anios], color=estilo_graficos.COLOR_TEXTO, fontsize=10)
+    eje.set_ylabel("% de personas en pobreza", color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9.5)
+    eje.set_ylim(15, 52)
+    eje.grid(True, linestyle=":", alpha=0.6, color="#d0d0ce")
+
+    estilo_graficos.estilizar_ejes(eje, horizontal=False)
+    eje.legend(loc="upper right", frameon=True, facecolor=estilo_graficos.COLOR_FONDO,
+               edgecolor="none", fontsize=9)
+
+    titulo = "Evolución de la pobreza monetaria en el Perú (2020-2024)"
+    subtitulo = "Pobreza monetaria por ámbito geográfico y área de residencia (% de la población)"
+    fuente = "Fuente: INEI, ENAHO 2020-2024 (módulos 34 y 02). Ponderado por hogar con factor07 × mieperho."
+    estilo_graficos.encabezado(figura, eje, titulo=titulo, subtitulo=subtitulo, fuente=fuente)
+
+    FIGURAS.mkdir(exist_ok=True)
+    figura.savefig(destino, dpi=200, facecolor=estilo_graficos.COLOR_FONDO, metadata={"Software": None})
+    plt.close(figura)
+    return destino
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--por", choices=sorted(GRAFICOS), help="Sin este argumento hace los cuatro gráficos.")
+    opciones = sorted(list(GRAFICOS.keys()) + ["serie"])
+    parser.add_argument("--por", choices=opciones, help="Sin este argumento hace todos los gráficos (incluyendo serie).")
     args = parser.parse_args()
+
+    if args.por == "serie":
+        dest = graficar_serie_pobreza()
+        print(f"{dest.relative_to(RAIZ).as_posix()} (serie 2020-2024)")
+        return
 
     if not BASE.is_file():
         sys.exit(f"Falta {BASE.name} en salidas/. Créala primero con la skill limpiando-enaho.")
     base = pd.read_parquet(BASE)
     referencia = nacional(base)
 
-    for nombre in [args.por] if args.por else sorted(GRAFICOS):
-        calcular, tema, nota, titular = GRAFICOS[nombre]
+    if args.por:
+        calcular, tema, nota, titular = GRAFICOS[args.por]
         tasas = calcular(base)
-        destino = FIGURAS / f"pobreza_por_{nombre}.png"
+        destino = FIGURAS / f"pobreza_por_{args.por}.png"
         dibujar(tasas, tema, nota, titular(tasas), destino, referencia)
         cifras = ", ".join(f"{grupo}: {valor:.1f} %" for grupo, valor in tasas.items())
         print(f"{destino.relative_to(RAIZ).as_posix()} ({cifras})")
+    else:
+        for nombre in sorted(GRAFICOS):
+            calcular, tema, nota, titular = GRAFICOS[nombre]
+            tasas = calcular(base)
+            destino = FIGURAS / f"pobreza_por_{nombre}.png"
+            dibujar(tasas, tema, nota, titular(tasas), destino, referencia)
+            cifras = ", ".join(f"{grupo}: {valor:.1f} %" for grupo, valor in tasas.items())
+            print(f"{destino.relative_to(RAIZ).as_posix()} ({cifras})")
+        dest_serie = graficar_serie_pobreza()
+        print(f"{dest_serie.relative_to(RAIZ).as_posix()} (serie 2020-2024)")
 
 
 if __name__ == "__main__":

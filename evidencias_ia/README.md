@@ -46,7 +46,8 @@ Algunos hitos para buscar en el archivo:
 | [`skills/01_encadenamiento_mapa_sin_base.md`](skills/01_encadenamiento_mapa_sin_base.md) | «Haz un mapa de la pobreza monetaria por departamento con ENAHO 2024.» sin la base procesada: `mapeando-enaho` invoca primero `limpiando-enaho` |
 | [`integracion/01_corrida_1_encuentra_indice_descontinuado.md`](integracion/01_corrida_1_encuentra_indice_descontinuado.md) | Primera corrida integrada: el agente detecta que `verificar.py` usaba un índice del IPC descontinuado |
 | [`integracion/02_corrida_2_scripts_sin_skills.md`](integracion/02_corrida_2_scripts_sin_skills.md) | Segunda corrida: regenera todo, pero corre los scripts de las skills sin invocarlas |
-| [`integracion/03_corrida_final_mcp_y_skills.md`](integracion/03_corrida_final_mcp_y_skills.md) | **Corrida final:** 2 servidores MCP (`bcrp`, `sbs`) y 5 skills en una sola ejecución; produjo [`informes/informe_final.md`](../informes/informe_final.md) |
+| [`integracion/03_corrida_final_mcp_y_skills.md`](integracion/03_corrida_final_mcp_y_skills.md) | Tercera corrida: 2 servidores MCP (`bcrp`, `sbs`) y 5 skills en una sola ejecución; 41 cifras trazadas |
+| [`integracion/04_corrida_final_series_2020_2024.md`](integracion/04_corrida_final_series_2020_2024.md) | **Corrida final:** Series 2020-2024, morosidad SBS/BCRP y límites IGN; 59 llamadas a herramientas, 79 cifras trazadas, regeneró [`informes/informe_final.md`](../informes/informe_final.md) |
 
 Las corridas de la evaluación (`claude -p` con `--no-session-persistence`) no guardan transcripción. Su registro es [`evaluacion/resultados.csv`](../evaluacion/resultados.csv) y [`evaluacion/robustez_resultados.csv`](../evaluacion/robustez_resultados.csv), con la respuesta, la fuente, las herramientas usadas, el tiempo, los turnos y el costo de cada una.
 

@@ -6,11 +6,11 @@ Este repo es un agente de investigación: responde preguntas sobre la economía 
 
 - **BCRP** (series macroeconómicas): servidor MCP `bcrp` (`mcp/server.py`). Primero `buscar_series` para encontrar el código; luego `serie`, `resumen`, `comparar_series` y `graficar_serie`. El recurso `bcrp://serie/{codigo}` describe una serie y el prompt `interpretar_indicador` guía su lectura.
 - **SBS** (sistema financiero): servidor MCP `sbs` ([mcp-sbs-peru](https://github.com/rodnm/mcp-sbs-peru)), con boletines oficiales de bancos, cajas, AFP y seguros: `indicadores` (morosidad, ROE, liquidez), `ranking`, `reporte`.
-- **ENAHO 2024** (INEI, microdatos de hogares): skills en `.claude/skills/`.
-  - `descargando-enaho` baja los módulos 34 y 02 y los límites departamentales.
-  - `limpiando-enaho` une, filtra residentes, pondera, valida y escribe `salidas/indicadores.csv`.
-  - `graficando-enaho` grafica la pobreza por área, sexo, edad o departamento.
-  - `mapeando-enaho` hace el mapa departamental uniendo por código.
+- **ENAHO 2020-2024** (INEI, microdatos de hogares): skills en `.claude/skills/`.
+  - `descargando-enaho` baja los módulos 34 y 02 (2020 a 2024).
+  - `limpiando-enaho` une, filtra residentes, pondera, valida contra metas oficiales del INEI y escribe `salidas/indicadores.csv`.
+  - `graficando-enaho` grafica la pobreza por área, sexo, edad, departamento y la serie temporal 2020-2024.
+  - `mapeando-enaho` elabora mapas con límites oficiales del IGN para 25 departamentos y 26 ámbitos (Lima desagregada).
 - **Informe y control**: `informando-peru` arma `informes/informe_final.md` con cifras trazables; `verificando-consistencia` contrasta las herramientas entre sí.
 
 ## Reglas

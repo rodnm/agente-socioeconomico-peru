@@ -104,7 +104,7 @@ def escribir(resultados_csv, robustez_csv, destino):
         r = pd.read_csv(robustez_csv)
         partes += ["## Robustez", "", tabla_md(robustez_por_modo(r), "modo"), "",
                    tabla_md(r.pivot(index="id", columns="modo", values="conducta_observada").reindex(
-                       columns=_modos(r)), "pedido"), ""]
+                       index=list(dict.fromkeys(r["id"])), columns=_modos(r)), "pedido"), ""]
     destino = Path(destino)
     destino.write_text("\n".join(partes), encoding="utf-8")
     return destino

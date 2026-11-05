@@ -70,5 +70,14 @@ def test_escribe_metricas_con_todas_las_secciones(analizar, resultados, tmp_path
                     "## Cambios frente al Modo A", "## Uso de herramientas", "## Interpretación de las mixtas"):
         assert seccion in texto
     assert "Robustez" not in texto  # sin corridas de robustez, no inventa la sección
+
+
+def test_la_robustez_conserva_el_orden_de_los_pedidos(analizar, resultados, tmp_path):
+    resultados.to_csv(tmp_path / "resultados.csv", index=False)
+    pd.DataFrame([{"id": i, "modo": m, "resultado": "cumple", "conducta_observada": "responde"}
+                  for i in ("r1", "r2", "r10") for m in ("A", "B")]).to_csv(tmp_path / "robustez.csv", index=False)
+    texto = analizar.escribir(tmp_path / "resultados.csv", tmp_path / "robustez.csv",
+                              tmp_path / "metricas.md").read_text(encoding="utf-8")
+    assert texto.index("| r1 |") < texto.index("| r2 |") < texto.index("| r10 |")
     assert "| A | 1 | 1 | 1 | 0 | 60 | 3 | 1.6 |" in texto  # conteos enteros, sin «1.0»
     assert "| m1 · A | no sabe | True |" in texto

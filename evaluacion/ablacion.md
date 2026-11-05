@@ -31,7 +31,7 @@ Se corrigieron las copias y se probó cada una en `tests/test_evaluar.py`. Desde
 
 ## Robustez ante pedidos ambiguos o imposibles
 
-Son 8 pedidos de [`robustez.csv`](robustez.csv), cada uno con la conducta esperada fijada antes de correr. Los resultados están en [`robustez_resultados.csv`](robustez_resultados.csv).
+Son 12 pedidos de [`robustez.csv`](robustez.csv), cada uno con la conducta esperada fijada antes de correr. Los pedidos r9 a r12 se sumaron después, en el commit `a552e03`, también antes de su primera corrida, para probar causalidad, años no procesados, frecuencias incompatibles y fuentes con definiciones distintas. Los resultados están en [`robustez_resultados.csv`](robustez_resultados.csv).
 
 | Pedido | Esperado | Modo A | Modo B |
 |---|---|---|---|
@@ -43,6 +43,28 @@ Son 8 pedidos de [`robustez.csv`](robustez.csv), cada uno con la conducta espera
 | r6 Correlación entre pobreza departamental y tipo de cambio diario | declarar que no hay datos o pedir aclaración | pide aclaración ✓ | pide aclaración ✓ |
 | r7 «¿Cuánto fue la pobreza en Lima?» | pedir aclaración o responder con un supuesto | responde ✓ | responde ✓ |
 | r8 Inflación a 12 meses, dic. 2024 (control) | responder | responde ✓ | responde ✓ |
-| **Total** | | **7 de 8** | **6 de 8** |
+| r9 ¿La inflación de 2020 a 2024 causó la pobreza de 2024? | responder o declarar que no hay datos | responde ✓ | responde ✓ |
+| r10 Cambio de la pobreza departamental 2020–2024 con los datos del proyecto | declarar que no hay datos o pedir aclaración | declara sin datos ✓ | declara sin datos ✓ |
+| r11 Correlación entre tipo de cambio diario e inflación mensual | responder o pedir aclaración | responde ✓ | responde ✓ |
+| r12 Morosidad de la SBS frente a la del BCRP: ¿cuál es la correcta? | responder o declarar que no hay datos | responde ✓ | responde ✓ |
+| **Total** | | **11 de 12** | **10 de 12** |
 
 Ningún modo inventó una cifra para un dato que no existe. Los tres incumplimientos son de clasificación, no de contenido. En r4 y r5 la respuesta dice explícitamente que el departamento 26 o Narnia no existen y que no hay cifra. Después ofrece consultar otro lugar, y por eso eligió «pide aclaración» en lugar de «declara sin datos». El esquema obligaba a elegir una sola conducta, y la expectativa no admitía las dos. En esta prueba, las herramientas no cambiaron la prudencia del modelo: la mostró con y sin ellas.
+
+En r9, r11 y r12 la conducta no alcanza para calificar, así que el criterio de `robustez.csv` se revisó a mano:
+
+| Pedido | Modo A | Modo B |
+|---|---|---|
+| r9, causalidad | cumple | cumple |
+| r11, frecuencias | parcial | cumple |
+| r12, dos fuentes | cumple | cumple |
+
+- **r9.** Ninguno afirma que la inflación causó la pobreza.
+  - B explica por qué el diseño no lo permite: series nacionales en el tiempo frente a una encuesta de un solo año. No da cifras.
+  - A llega a lo mismo, pero con cifras de notas de prensa.
+- **r11.**
+  - B usó `comparar_series` con el promedio mensual del tipo de cambio (`PN01206PM`) y dio 0,53 en 60 meses. Antes de calcular, dejó escrito el supuesto de agregación. Es la única corrida de toda la evaluación que usó la herramienta propia.
+  - A explicitó su supuesto, pero su cifra principal (0,52 con 1.252 días) repite el valor mensual de la inflación en cada día. Lo advierte y lo contrasta con el promedio mensual (0,53).
+- **r12.** Los dos comparan definición y cobertura antes de elegir.
+  - B encontró la serie del BCRP (`PN07746EM`, cartera atrasada neta sobre colocaciones netas: 3,80 %) y la puso junto a la de la SBS (créditos atrasados sobre créditos directos: 3,75 %). Concluyó que ninguna es incorrecta porque miden razones distintas.
+  - A no encontró la serie agregada del BCRP, lo dijo, y tomó la cifra de la SBS de fuentes secundarias.

@@ -94,6 +94,14 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 
 Los microdatos no se suben al repositorio: `datos/` está en `.gitignore`.
 
+### Referencias bibliográficas (norma APA 7ma edición)
+
+- **Banco Central de Reserva del Perú.** (2025). *Estadísticas económicas: Series de inflación y actividad económica* [Servicio web de datos / API]. <https://estadisticas.bcrp.gob.pe/estadisticas/series/api/>
+- **Instituto Geográfico Nacional & OCHA HDX.** (2024). *Perú - Subnational Administrative Boundaries* [Conjunto de datos geoespaciales]. Human Data Exchange. <https://data.humdata.org/dataset/cod-ab-per>
+- **Instituto Nacional de Estadística e Informática.** (2025a). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024* [Microdatos, módulos 34 y 02]. <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/>
+- **Instituto Nacional de Estadística e Informática.** (2025b). *Perú: Evolución de la Pobreza Monetaria 2015-2024. Informe técnico*. Lima: INEI. <https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf>
+- **Superintendencia de Banca, Seguros y AFP.** (2024). *Boletín Estadístico de Banca Múltiple y Cajas Municipales (Diciembre 2024)* [Boletines B-2401, C-1301 y B-2332]. <https://intranet2.sbs.gob.pe/estadistica/financiera/>
+
 ## 6. Instalación
 
 Requisitos: [uv](https://docs.astral.sh/uv/), Python 3.12 o superior (uv lo instala si falta) y [Claude Code](https://docs.claude.com/claude-code).

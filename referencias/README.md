@@ -52,7 +52,7 @@ Para la representación espacial de la pobreza departamental y por ámbitos terr
 ### Fuente primaria y licencia
 
 **Cita en formato APA 7:**
-> Instituto Geográfico Nacional & Oficina de las Naciones Unidas para la Coordinación de Asuntos Humanitarios. (2020). *Peru: Subnational Administrative Boundaries (COD-AB)* [Conjunto de datos]. Humanitarian Data Exchange. Licencia CC BY-IGO. https://data.humdata.org/dataset/cod-ab-per
+> Instituto Geográfico Nacional. (2020). *Peru - Subnational administrative boundaries* (Versión v01) [Conjunto de datos]. OCHA Field Information Services Section; Humanitarian Data Exchange. Recuperado el 5 de noviembre de 2026, de https://data.humdata.org/dataset/cod-ab-per
 
 - **Publicación:** 14 de julio de 2020 (versión validada COD-AB).
 - **URL del conjunto de datos:** `https://data.humdata.org/dataset/cod-ab-per`
@@ -62,7 +62,7 @@ Para la representación espacial de la pobreza departamental y por ámbitos terr
 
 ### Capas procesadas en `referencias/`
 
-El script `scripts/preparar_limites.py` procesa los límites oficiales en proyección EPSG:4326 y simplifica la topología conservando la integridad de fronteras e islas:
+El script `scripts/preparar_limites.py` procesa los límites oficiales en proyección EPSG:4326 y simplifica cada polígono por separado, así que las fronteras compartidas no coinciden exactamente; el proyecto solo usa estas capas para dibujar los mapas, no para medir áreas:
 
 1. **`referencias/limites_departamentales_ign.geojson` (25 unidades):**
    - Corresponde a los 24 departamentos y la Provincia Constitucional del Callao.

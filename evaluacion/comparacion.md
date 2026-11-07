@@ -101,7 +101,7 @@ La marca automática `lenguaje_causal` de `metricas.md` no sirve para calificar.
 - **El Modo A refleja, sobre todo, el aislamiento.** Recibió en las dos versiones la misma carpeta y las mismas herramientas (función `preparar` de `evaluar.py`). Lo que cambió para él es que ya no carga la configuración global del usuario.
 - **El costo bajó en los dos modos.** En el Modo A, el costo bajó 77 % y el tiempo, 40 %; en el Modo B, 75 % y 15 %. La caída es coherente con menos contexto en cada sesión, pero los CSV no registran tokens, así que no está medida.
 - **Lo que cambió en las respuestas** fue e3 en A, por la búsqueda web, y la interpretación de m1 en B, que dejó de afirmar una causa. Con una corrida no se puede saber si esto último se debe al aislamiento o a la variación entre corridas.
-- **El 25.7 % de la v1 en m2.** El Modo A de la v1 lo atribuyó al Gráfico 4.7 del informe del INEI, y [`v1/comparacion.md`](v1/comparacion.md) lo presentó como la cifra de los 43 distritos de Lima. No coincide con el 27.6 % que el Cuadro III.1 (p. 220) publica para ese ámbito. El Gráfico 4.7 no se verificó aquí.
+- **El 25.7 % de la v1 en m2.** El Modo A de la v1 lo atribuyó al Gráfico 4.7 del informe del INEI, y [`v1/comparacion.md`](v1/comparacion.md) lo presentó como la cifra de los 43 distritos de Lima. No coincide con el 27.6 % que el Cuadro III.1 (p. 220) publica para ese ámbito. En el Gráfico 4.7 (p. 72), el 25.7 % corresponde a Amazonas; Lima Metropolitana figura con 27.6 %.
 
 ## Conclusión
 

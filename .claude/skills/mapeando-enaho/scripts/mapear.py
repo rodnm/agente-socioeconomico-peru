@@ -244,7 +244,8 @@ def dibujar_ambitos(mapa: gpd.GeoDataFrame) -> None:
     titulo = "Pobreza monetaria por ámbito territorial, Perú 2024"
     subtitulo = (f"26 ámbitos del INEI, con Lima desagregada: {LIMA_METROPOLITANA} ({metro_p:.1f} %) y "
                  f"{LIMA_PROVINCIAS} ({provs_p:.1f} %) se analizan por separado.")
-    fuente = "Fuente: INEI, ENAHO 2024 (Cuadro III.1). Límites oficiales del IGN (COD-AB, CC BY-IGO)."
+    fuente = ("Fuente: elaboración propia con microdatos de la ENAHO 2024 (INEI), contrastada con el Cuadro III.1 del informe "
+              "técnico del INEI. Límites oficiales del IGN (COD-AB, CC BY-IGO).")
     if marcados:
         fuente += "\n" + nota_referenciales([n for _, n in marcados])
     estilo_graficos.encabezado(figura, eje, titulo=titulo, subtitulo=subtitulo, fuente=fuente)

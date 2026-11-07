@@ -56,8 +56,20 @@ def test_ningun_modo_ve_las_respuestas_esperadas(tmp_path, copia):
 def test_solo_mcp_es_el_modo_a_mas_el_servidor(tmp_path):
     # Sin las salidas de las skills, ni las figuras, ni la referencia de la sesión 16 (que trae la respuesta de e3).
     evaluar.preparar("crudos-con-mcp", tmp_path)
-    assert sorted(p.name for p in tmp_path.iterdir()) == [".mcp.json", "datos", "mcp", "pyproject.toml", "uv.lock"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == [".mcp.json", "datos", "mcp", "pyproject.toml", "scripts",
+                                                          "uv.lock"]
     assert (tmp_path / "mcp" / "server.py").is_file()
+    # De scripts/ solo va el estilo de los gráficos, que el servidor importa; nada de exportar evidencias ni límites.
+    assert [p.name for p in (tmp_path / "scripts").iterdir()] == ["estilo_graficos.py"]
+
+
+def test_el_servidor_del_bcrp_arranca_en_la_copia_solo_mcp(tmp_path):
+    # En la evaluación v2, la copia no traía scripts/estilo_graficos.py y el servidor no arrancaba: solo-mcp se quedó
+    # sin BCRP sin que nada fallara.
+    evaluar.preparar("crudos-con-mcp", tmp_path)
+    r = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, 'mcp'); import server"],
+                       cwd=tmp_path, capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr[-600:]
 
 
 def test_sin_mcp_tampoco_tiene_el_codigo_del_servidor(tmp_path):

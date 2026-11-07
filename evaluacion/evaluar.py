@@ -88,6 +88,9 @@ def preparar(copia, destino):
             shutil.copytree(RAIZ / "mcp", destino / "mcp", ignore=shutil.ignore_patterns("__pycache__"))
             for archivo in (".mcp.json", "pyproject.toml", "uv.lock"):
                 shutil.copy(RAIZ / archivo, destino)
+            # El servidor importa el estilo de los gráficos al arrancar; sin él, el modo se queda sin BCRP.
+            (destino / "scripts").mkdir()
+            shutil.copy(RAIZ / "scripts" / "estilo_graficos.py", destino / "scripts")
         return
     shutil.copytree(RAIZ, destino, dirs_exist_ok=True, ignore=lambda d, nombres: [n for n in nombres if n in EXCLUIDOS])
     if copia == "proyecto-sin-mcp":  # las herramientas son funciones de Python: con el código, Bash las llamaría igual

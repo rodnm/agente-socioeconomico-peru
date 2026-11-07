@@ -1,33 +1,49 @@
-# Referencias oficiales de pobreza monetaria (INEI 2024)
+# Referencias oficiales
 
-Este directorio contiene las cifras oficiales de referencia sobre la incidencia de la pobreza monetaria en el Perú correspondientes al año 2024, transcritas directamente del informe técnico publicado por el Instituto Nacional de Estadística e Informática (INEI) y su anexo estadístico en Excel.
+Este directorio contiene las cifras de pobreza monetaria que publica el Instituto Nacional de Estadística e Informática (INEI), contra las que se validan los resultados del proyecto, y los límites territoriales oficiales del Instituto Geográfico Nacional (IGN) que usan los mapas.
 
-## Fuente primaria oficial
+## Cifras de pobreza monetaria del INEI
+
+### Fuente
 
 **Cita en formato APA 7:**
-> Instituto Nacional de Estadística e Informática. (2025). *Perú: Evolución de la pobreza monetaria 2015-2024: Informe técnico*. Lima: INEI. https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf
+> Instituto Nacional de Estadística e Informática. (2025). *Perú: Evolución de la pobreza monetaria, 2015-2024: Informe técnico*. https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf
 
-- **Publicación:** Mayo de 2025.
-- **URL del documento principal (PDF):** `https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf`
-- **SHA-256 del archivo PDF:** `ed964c41c963f0ac5ce11b1713680ec93519838b9db0cd8fa139e6bb922d6c73`
-- **URL del anexo estadístico (Excel):** `https://cdn.www.gob.pe/uploads/document/file/8058555/6763186-anexo-estadistico-excel.zip`
+- **Publicación:** Lima, mayo de 2025, según la presentación del informe.
+- **SHA-256 del PDF:** `ed964c41c963f0ac5ce11b1713680ec93519838b9db0cd8fa139e6bb922d6c73`.
+- **Anexo estadístico (Excel):** `https://cdn.www.gob.pe/uploads/document/file/8058555/6763186-anexo-estadistico-excel.zip`. Su archivo `03_FGT de Pobreza 2015-2024_informe.xlsx` repite el Cuadro III.1 (hoja `3.1`) y el Cuadro III.4 (hoja `3.4`).
 - **Fecha de consulta y verificación:** 5 de noviembre de 2026.
 
-## Procedimiento de transcripción y rigor científico
+Las páginas citadas son las impresas en el informe. En el visor del PDF, cada una corresponde al número impreso más 2.
 
-1. **Tabla base (`referencias/inei_pobreza_2024.csv`):**
-   - Se transcribieron las tasas de pobreza monetaria, intervalos de confianza al 95 % (límite inferior y superior) y coeficientes de variación (C.V.) reportados en el **Cuadro N° III.1** (pp. 219–220 del informe impreso) y en el **Cuadro N° III.4** (p. 72 / Anexo).
-   - Las cifras departamentales y de ámbitos provienen de la hoja `3.1` del archivo `03_FGT de Pobreza 2015-2024_informe.xlsx` incluido en el anexo oficial.
-   - Conforme a la metodología del INEI, los resultados con un coeficiente de variación mayor al 15 % (Ica con 15.6 %, Moquegua con 16.3 % y Madre de Dios con 19.5 %) están clasificados explícitamente como de carácter **referencial**.
+### `inei_pobreza_2024.csv`
 
-2. **Desagregación territorial de Lima:**
-   - El INEI publica en el Cuadro III.1 dos ámbitos diferenciados para el departamento de Lima:
-     - **Lima Metropolitana** (provincia 1501, con los 43 distritos de la capital): **27.6 %** (IC 95 %: [25.0, 30.1], C.V. 4.7 %).
-     - **Lima provincias** (las 9 provincias restantes: Barranca, Cajatambo, Canta, Cañete, Huaral, Huarochirí, Huaura, Oyón y Yauyos): **21.7 %** (IC 95 %: [18.3, 25.1], C.V. 8.0 %).
-   - El INEI no publica una cifra oficial agregada para el departamento 15 en su conjunto; la cifra de 27.1 % correspondía a un cálculo ponderado heredado de los materiales introductorios del curso, el cual se mantiene únicamente rotulado como requisito de consigna territorial.
+Columnas: `ambito, ccdd, valor, ic_inf, ic_sup, cv, cuadro, pagina, nota`. Cada fila es la columna 2024 de un cuadro del informe, con su intervalo de confianza al 95 % y su coeficiente de variación:
 
-3. **Superación de la validación circular:**
-   - Se eliminaron los artefactos anteriores del curso (`pobreza_departamento_2024.csv` y `mapa_pobreza_2024.png`) para asegurar trazabilidad verificable hasta la fuente gubernamental original sin depender de referencias intermedias.
+| Filas | Cuadro y página |
+|---|---|
+| Nacional, urbana, rural y Lima Metropolitana con Callao (dominio 8) | Cuadro III.1, p. 219 |
+| Los 24 departamentos con cifra publicada, el Callao, Lima Metropolitana (provincia 1501) y Lima provincias | Cuadro III.1, p. 220 |
+| Pobreza extrema nacional | Cuadro III.4, p. 223 |
+
+- **Transcripción:** cada valor se transcribió del informe y se cotejó de nuevo, fila por fila, con el texto del PDF: valor, límites del intervalo y CV.
+- **Cifras referenciales:** el INEI considera referenciales las cifras con un CV mayor a 15 % (nota del Cuadro III.1 y p. 71). Son Ica (15.6 %), Moquegua (16.3 %) y Madre de Dios (19.5 %), marcadas en la columna `nota`.
+- **Años 2020 a 2023:** los mismos cuadros traen la serie 2015-2024, pero sin intervalos ni CV para esos años. Sus metas están en `METAS_INEI` de `.claude/skills/limpiando-enaho/scripts/limpiar.py`, con el mismo cuadro y la misma página.
+
+### Lima, departamento 15: sin cifra publicada por el INEI
+
+El INEI publica en el Cuadro III.1 dos ámbitos para el departamento de Lima, pero no una cifra del departamento en conjunto:
+
+- **Lima Metropolitana**, los 43 distritos de la provincia de Lima (provincia 1501): **27.6 %** (IC 95 %: [25.0, 30.1], CV 4.7 %).
+- **Lima provincias**, las provincias de Barranca, Cajatambo, Canta, Cañete, Huaral, Huarochirí, Huaura, Oyón y Yauyos: **21.7 %** (IC 95 %: [18.3, 25.1], CV 8.0 %).
+
+Por eso la tabla no tiene una fila para el departamento 15, y ninguna comprobación del proyecto lo valida contra el INEI. Se validan los dos ámbitos. Una versión anterior incluía 27.1 % para el departamento completo: era un cálculo del curso con los mismos microdatos, no una cifra del INEI, y se retiró.
+
+La cifra de 28.2 % (dominio 8 de la ENAHO) corresponde a Lima Metropolitana **con** el Callao, que el INEI rotula «Lima Metropolitana y Prov. Const. del Callao».
+
+### Validación sin circularidad
+
+Se retiraron los archivos del curso (`pobreza_departamento_2024.csv` y `mapa_pobreza_2024.png`), cuyas cifras se calcularon con los mismos microdatos que replica el proyecto. Todas las metas de validación son cifras publicadas por el INEI, con su cuadro y su página.
 
 ## Límites cartográficos oficiales (IGN / OCHA HDX COD-AB)
 

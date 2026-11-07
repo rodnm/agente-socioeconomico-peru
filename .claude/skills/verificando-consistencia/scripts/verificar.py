@@ -4,8 +4,8 @@
 
 Resultados posibles: OK (coinciden dentro de la tolerancia), DIFERENCIA (no coinciden, por una razón conocida que se
 explica), FALLA (no coinciden y no debería pasar) y NO VERIFICABLE (la fuente no respondió o no tiene datos del
-periodo). Sale con error solo si
-hay alguna FALLA.
+periodo). La morosidad bancaria se contrasta en diciembre de 2020 a 2024, entre el BCRP y la SBS.
+Sale con error solo si hay alguna FALLA.
 """
 import argparse
 import asyncio
@@ -25,6 +25,10 @@ ARMAR = RAIZ / ".claude" / "skills" / "informando-peru" / "scripts" / "armar_inf
 # quedó descontinuado en diciembre de 2021.
 IPC_INDICE, IPC_12_MESES = "PN38705PM", "PN01273PM"
 SERIE_MOROSIDAD_BCRP = "PN07746EM"
+ANIOS_MOROSIDAD = tuple(range(2020, 2025))  # diciembre de cada año
+REFERENCIA_INEI = RAIZ / "referencias" / "inei_pobreza_2024.csv"
+# Los dos ámbitos de Lima que publica el INEI (Cuadro III.1, p. 220) y su id en indicadores.csv.
+AMBITOS_LIMA = {"1501": "pobreza_lima_metropolitana_provincia", "15_resto": "pobreza_lima_provincias"}
 TOLERANCIA_ENAHO = 0.1      # puntos porcentuales, la del enunciado
 TOLERANCIA_RECALCULO = 0.05  # puntos: el índice se publica con 2 decimales y la variación sale del índice sin redondear
 
@@ -68,14 +72,24 @@ def verificar_enaho(reg):
                 f"urbana {urbana:.2f}, nacional {nacional:.2f}, rural {rural:.2f}")
 
     departamentos = t[t.index.str.startswith("pobreza_dep_")].rename(lambda i: i[-2:])
-    ref_df = pd.read_csv(RAIZ / "referencias" / "inei_pobreza_2024.csv", dtype={"ccdd": str})
-    referencia = (ref_df.dropna(subset=["ccdd"])
-                  .query("ccdd.str.len() == 2")
-                  .set_index("ccdd")["valor"].astype(float))
-    alejados = (departamentos - referencia).abs().loc[lambda d: d > TOLERANCIA_ENAHO]
+    # El INEI no publica una cifra del departamento 15 en conjunto: en su lugar se comparan Lima Metropolitana
+    # (provincia 1501) y Lima provincias, que sí publica. La consigna de 25 departamentos se exige igual.
+    ref = (pd.read_csv(REFERENCIA_INEI, dtype={"ccdd": str}).dropna(subset=["ccdd"])
+           .set_index("ccdd")["valor"].astype(float))
+    publicadas = ref[ref.index.str.fullmatch(r"\d{2}") & (ref.index != "15")]
+    objetivo = pd.concat([publicadas, ref.reindex(list(AMBITOS_LIMA))])
+    lima = pd.Series({codigo: t.get(id_) for codigo, id_ in AMBITOS_LIMA.items()}, dtype=float)
+    replicadas = pd.concat([departamentos.drop("15", errors="ignore"), lima])
+    diferencias = (replicadas.reindex(objetivo.index) - objetivo).abs()
+    sin_par = diferencias.index[diferencias.isna()].tolist()
+    alejados = diferencias.dropna().loc[lambda d: d > TOLERANCIA_ENAHO]
+    completo = len(departamentos) == 25 and len(publicadas) == 24 and not sin_par
     reg.agregar("ENAHO", "Departamentos de limpiando-enaho frente al informe técnico del INEI",
-                "OK" if alejados.empty and len(departamentos) == 25 else "FALLA",
-                f"{len(departamentos)} departamentos; {len(alejados)} fuera de ±{TOLERANCIA_ENAHO}")
+                "OK" if alejados.empty and completo else "FALLA",
+                f"{len(departamentos)} departamentos en indicadores.csv (consigna: 25); comparados con el INEI: "
+                f"{len(publicadas)} departamentos, Lima Metropolitana y Lima provincias; "
+                f"{len(alejados)} fuera de ±{TOLERANCIA_ENAHO}" + (f"; sin par: {', '.join(sin_par)}" if sin_par else "")
+                + ". Lima (15) sin cifra publicada por el INEI para el departamento en conjunto")
     mapa = SALIDAS / "mapa_vs_referencia.csv"
     if mapa.is_file():
         delmapa = pd.read_csv(mapa, dtype={"ccdd": str}).set_index("ccdd")["pobreza_pct"]
@@ -137,56 +151,71 @@ def verificar_bcrp(reg, anio):
                 "promedio, máximo, mínimo y cambio coinciden" if not distintos else f"distintos: {distintos}")
 
 
-async def _consultar_morosidad(anio: int):
-    # 1. BCRP PN07746EM
+async def _consultar_morosidad(anios):
+    """La serie mensual PN07746EM del BCRP y un boletín B-2401 de la SBS por cada diciembre pedido."""
     sys.path.insert(0, str(RAIZ / "mcp"))
     from server import mcp
     async with Client(mcp) as c_bcrp:
-        bcrp_res = (await c_bcrp.call_tool("serie", {
-            "codigo": SERIE_MOROSIDAD_BCRP, "desde": f"{anio}-12", "hasta": f"{anio}-12"
-        })).data
+        bcrp = (await c_bcrp.call_tool("serie", {
+            "codigo": SERIE_MOROSIDAD_BCRP, "desde": f"{min(anios)}-12", "hasta": f"{max(anios)}-12"})).data
 
-    # 2. SBS B-2401
     import json
     config = json.loads((RAIZ / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
+    sbs = {}
     async with Client({"mcpServers": {"sbs": config["sbs"]}}) as c_sbs:
-        sbs_res = (await c_sbs.call_tool("indicadores", {
-            "tipo_entidad": "banca", "indicador": "morosidad", "periodo": f"{anio}-12"
-        })).data
-    return bcrp_res, sbs_res
+        for anio in anios:
+            sbs[anio] = (await c_sbs.call_tool("indicadores", {
+                "tipo_entidad": "bancos", "indicador": "morosidad", "periodo": f"{anio}-12"})).data
+    return bcrp, sbs
 
 
-def verificar_morosidad(reg, anio: int):
-    """Contrasta la tasa de morosidad bancaria a diciembre entre BCRP (PN07746EM) y SBS (B-2401)."""
-    periodo = f"{anio}-12"
+def _total_sbs(respuesta) -> float | None:
+    """El total del sistema bancario en una respuesta de sbs.indicadores, o None si no viene."""
+    if not isinstance(respuesta, dict):
+        return None
+    indicadores = respuesta.get("indicadores") or []
+    total = indicadores[0].get("total") if indicadores else respuesta.get("total")
+    return float(total["valor"]) if total and total.get("valor") is not None else None
+
+
+def verificar_morosidad(reg, anios=ANIOS_MOROSIDAD):
+    """Contrasta la morosidad bancaria de cada diciembre entre el BCRP (PN07746EM) y la SBS (B-2401)."""
+    verificacion = (f"Morosidad bancaria en diciembre de {min(anios)} a {max(anios)}: BCRP ({SERIE_MOROSIDAD_BCRP}) "
+                    "frente a SBS (B-2401)")
     try:
-        bcrp_res, sbs_res = asyncio.run(_consultar_morosidad(anio))
-        valor_bcrp = float(bcrp_res["datos"][-1]["valor"])
-        indicadores_sbs = sbs_res.get("indicadores", [])
-        valor_sbs = None
-        if indicadores_sbs and "total" in indicadores_sbs[0]:
-            valor_sbs = float(indicadores_sbs[0]["total"]["valor"])
-        elif "total" in sbs_res:
-            valor_sbs = float(sbs_res["total"]["valor"])
-
-        if valor_sbs is not None:
-            dif = abs(valor_bcrp - valor_sbs)
-            reg.agregar(
-                "BCRP / SBS",
-                f"Morosidad bancaria en {periodo}: BCRP ({SERIE_MOROSIDAD_BCRP}) frente a SBS (B-2401)",
-                "DIFERENCIA",
-                f"BCRP {valor_bcrp:.2f} % frente a SBS {valor_sbs:.2f} % (diferencia {dif:.2f} puntos porcentuales)",
-                "Diferencia metodológica esperada entre la definición bruta de la SBS (B-2401: ratio cartera atrasada "
-                "sobre créditos directos) y la definición neta del BCRP (PN07746EM: cartera atrasada neta de provisiones "
-                "sobre colocaciones netas).",
-            )
-        else:
-            reg.agregar("BCRP / SBS", f"Morosidad bancaria en {periodo}", "NO VERIFICABLE",
-                        "No se pudo extraer el total de morosidad de la respuesta de la SBS", "")
+        bcrp, sbs = asyncio.run(_consultar_morosidad(anios))
     except Exception as e:
-        motivo = str(e).splitlines()[0][:200]
-        reg.agregar("BCRP / SBS", f"Morosidad bancaria en {periodo}: BCRP ({SERIE_MOROSIDAD_BCRP}) frente a SBS (B-2401)",
-                    "NO VERIFICABLE", motivo, "No se pudo consultar el BCRP o la SBS para contrastar morosidad.")
+        reg.agregar("BCRP / SBS", verificacion, "NO VERIFICABLE", str(e).splitlines()[0][:200],
+                    "No se pudo consultar el BCRP o la SBS. No se estima nada en su lugar.")
+        return
+    del_bcrp = {d["periodo"]: float(d["valor"]) for d in bcrp.get("datos", []) if d.get("valor") is not None}
+    pares, faltan_bcrp, faltan_sbs = {}, [], []
+    for anio in anios:
+        periodo = f"{anio}-12"
+        total = _total_sbs(sbs.get(anio))
+        if periodo not in del_bcrp:
+            faltan_bcrp.append(periodo)
+        if total is None:
+            faltan_sbs.append(periodo)
+        if periodo in del_bcrp and total is not None:
+            pares[periodo] = (del_bcrp[periodo], total)
+    if not pares:
+        reg.agregar("BCRP / SBS", verificacion, "NO VERIFICABLE", "ningún diciembre con dato de las dos fuentes",
+                    "No se estima nada en su lugar.")
+        return
+    diferencias = {p: abs(b - s) for p, (b, s) in pares.items()}
+    peor = max(diferencias, key=diferencias.get)
+    detalle = (f"{len(pares)} diciembres; diferencia absoluta máxima {diferencias[peor]:.2f} puntos en {peor}; "
+               + "; ".join(f"{p}: BCRP {b:.2f} % frente a SBS {s:.2f} %" for p, (b, s) in pares.items()))
+    if faltan_bcrp:
+        detalle += f"; sin dato del BCRP: {', '.join(faltan_bcrp)}"
+    if faltan_sbs:
+        detalle += f"; sin dato de la SBS: {', '.join(faltan_sbs)}"
+    reg.agregar("BCRP / SBS", verificacion, "DIFERENCIA", detalle,
+                "Miden cosas distintas, así que no se espera que coincidan: la SBS publica en el B-2401 «Créditos "
+                "Atrasados (criterio SBS) / Créditos Directos», y la serie PN07746EM del BCRP es «Cartera atrasada neta "
+                "/ Colocaciones netas (%) - Empresas Bancarias». Antes de comparar cifras de morosidad hay que revisar "
+                "esa definición, la cobertura y la fecha.")
 
 
 def verificar_informe(reg):
@@ -230,14 +259,15 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--anio-bcrp", type=int, default=2024, help="Año de las series del BCRP que se contrastan.")
+    parser.add_argument("--anio-bcrp", type=int, default=2024,
+                        help="Año de las series del IPC del BCRP que se contrastan. La morosidad BCRP-SBS se contrasta siempre en diciembre de 2020 a 2024.")
     parser.add_argument("--sin-bcrp", action="store_true", help="Omite las verificaciones que consultan al BCRP.")
     args = parser.parse_args()
     reg = Registro()
     verificar_enaho(reg)
     if not args.sin_bcrp:
         verificar_bcrp(reg, args.anio_bcrp)
-        verificar_morosidad(reg, args.anio_bcrp)
+        verificar_morosidad(reg)
     verificar_informe(reg)
     conteo = escribir(reg)
     print("salidas/consistencia.md: " + ", ".join(f"{k} {v}" for k, v in sorted(conteo.items())))

@@ -123,3 +123,42 @@ def test_el_recurso_describe_la_serie(api):
             return await c.read_resource("bcrp://serie/PN01273PM")
     contenido = asyncio.run(leer())[0].text
     assert "IPC (var% 12 meses)" in contenido and "Mensual" in contenido
+
+
+@pytest.fixture
+def figuras_guardadas(monkeypatch):
+    """Anota cada figura que se guarda, para revisar sus textos después de graficar."""
+    from matplotlib.figure import Figure
+    guardadas, original = [], Figure.savefig
+
+    def anotar(self, *args, **kwargs):
+        guardadas.append(self)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Figure, "savefig", anotar)
+    return guardadas
+
+
+def con_serie_en_catalogo(codigo, nombre):
+    from conftest import CATALOGO_FALSO
+    server.CATALOGO.write_text(CATALOGO_FALSO + f"{codigo};PBI;PBI mensual;{nombre};Mensual;2026-10-01;Ene.1995\n",
+                               encoding="utf-8")
+    server.catalogo.cache_clear()
+
+
+def test_graficar_no_corta_el_nombre_de_la_serie_en_el_subtitulo(api, figuras_guardadas):
+    nombre = ("Índice de precios al consumidor de Lima Metropolitana sin alimentos ni energía (variación porcentual "
+              "a doce meses) - IPC subyacente")
+    con_serie_en_catalogo("PN99999PM", nombre)
+    api.respuestas = [periodos(("Ene.2025", "2.1"), ("Feb.2025", "2.0"), ("Mar.2025", "1.9"))]
+    llamar("graficar_serie", codigo="PN99999PM", desde="2025-01", hasta="2025-03", titulo="La inflación bajó")
+    lineas = [linea.replace(" ", " ") for t in figuras_guardadas[0].texts for linea in t.get_text().split("\n")]
+    assert nombre in " ".join(lineas), "El subtítulo debe mostrar el nombre completo, envuelto en varias líneas"
+    assert any("2025-01 a 2025-03" in linea for linea in lineas), "El periodo no debe partirse entre dos líneas"
+
+
+def test_graficar_rotula_en_porcentaje_las_variaciones_porcentuales(api, figuras_guardadas):
+    con_serie_en_catalogo("PN01728AM", "Producto bruto interno y demanda interna (variación porcentual interanual) - PBI")
+    api.respuestas = [periodos(("Ene.2024", "1.4"), ("Feb.2024", "3.0"), ("Mar.2024", "-0.3"))]
+    llamar("graficar_serie", codigo="PN01728AM", desde="2024-01", hasta="2024-03")
+    assert figuras_guardadas[0].axes[0].get_ylabel() == "%"

@@ -1,8 +1,12 @@
 """Hace los mapas de pobreza de la ENAHO 2024 en mapas/ con límites oficiales del IGN.
 
 Genera dos mapas:
-  - mapas/pobreza_departamento.png: los 25 departamentos requeridos por la consigna.
-  - mapas/pobreza_ambitos.png: los 26 ámbitos territoriales oficiales del INEI (con Lima desagregada).
+  - mapas/pobreza_departamento.png: los 25 departamentos que exige la consigna, con Lima como un solo departamento.
+  - mapas/pobreza_ambitos.png: los 26 ámbitos territoriales del INEI, con Lima desagregada en Lima Metropolitana y
+    Lima provincias.
+
+Los límites salen solo de referencias/ (capas del IGN preparadas con scripts/preparar_limites.py): si faltan, el
+script se detiene en lugar de usar otro archivo.
 """
 
 import sys
@@ -12,6 +16,7 @@ import geopandas as gpd
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.patheffects as efectos
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -21,8 +26,7 @@ if str(RAIZ / "scripts") not in sys.path:
 import estilo_graficos
 
 BASE = RAIZ / "salidas" / "personas_2024.parquet"
-GEOJSON_DEP_OFICIAL = RAIZ / "referencias" / "limites_departamentales_ign.geojson"
-GEOJSON_DEP_LEGACY = RAIZ / "datos" / "peru_departamental_simple.geojson"
+GEOJSON_DEP = RAIZ / "referencias" / "limites_departamentales_ign.geojson"
 GEOJSON_AMBITOS = RAIZ / "referencias" / "limites_ambitos_ign.geojson"
 
 REFERENCIA = RAIZ / "referencias" / "inei_pobreza_2024.csv"
@@ -34,14 +38,22 @@ LLAVES_HOGAR = ["conglome", "vivienda", "hogar"]
 DEPARTAMENTOS = 25
 AMBITOS = 26
 TOLERANCIA = 0.1
+# El INEI publica Lima Metropolitana y Lima provincias por separado, no el departamento de Lima en conjunto.
+SIN_CIFRA_INEI = "sin cifra publicada por el INEI"
+DEPARTAMENTOS_SIN_CIFRA = {"15"}
+LIMA_METROPOLITANA = "Lima Metropolitana"
+LIMA_PROVINCIAS = "Lima provincias"
+MARCA_REFERENCIAL = "*"
+ESCALA_MAXIMA = 45.0
+HALO = [efectos.withStroke(linewidth=2.6, foreground=estilo_graficos.COLOR_FONDO)]
 
 
-def ruta_geojson_departamental() -> Path:
-    if GEOJSON_DEP_OFICIAL.is_file():
-        return GEOJSON_DEP_OFICIAL
-    if GEOJSON_DEP_LEGACY.is_file():
-        return GEOJSON_DEP_LEGACY
-    sys.exit(f"Falta el archivo de límites departamentales en {GEOJSON_DEP_OFICIAL} o {GEOJSON_DEP_LEGACY}.")
+def exigir_limites() -> None:
+    """Se detiene si falta alguna capa del IGN: no hay respaldo con otros límites."""
+    faltan = [ruta.name for ruta in (GEOJSON_DEP, GEOJSON_AMBITOS) if not ruta.is_file()]
+    if faltan:
+        sys.exit(f"Faltan los límites oficiales del IGN en referencias/: {', '.join(faltan)}. Genéralos con "
+                 "`uv run scripts/preparar_limites.py` (usa el zip de OCHA HDX registrado en referencias/README.md).")
 
 
 def pobreza_por_departamento(base: pd.DataFrame) -> pd.DataFrame:
@@ -94,15 +106,25 @@ def unir_ambitos_con_limites(tasas: pd.DataFrame, limites: gpd.GeoDataFrame) -> 
 
 
 def comprobar_referencia(mapa: gpd.GeoDataFrame) -> None:
-    """Contrasta cada departamento con las cifras oficiales del INEI y deja la tabla en salidas/."""
+    """Contrasta cada departamento con las cifras oficiales del INEI y deja la tabla en salidas/.
+
+    El departamento de Lima (15) no se compara: el INEI no publica una cifra para él en conjunto, así que la tabla
+    lo declara "sin cifra publicada por el INEI". Cualquier otro departamento sin cifra detiene el proceso, porque
+    indicaría una tabla de referencia incompleta.
+    """
     ref_df = pd.read_csv(REFERENCIA, dtype={"ccdd": str})
-    ref_deps = ref_df[ref_df["ccdd"].isin(mapa["departamento"])].set_index("ccdd")["valor"].astype(float)
+    publicadas = ref_df[ref_df["ccdd"].isin(mapa["departamento"]) & ~ref_df["ccdd"].isin(DEPARTAMENTOS_SIN_CIFRA)]
+    ref_deps = publicadas.set_index("ccdd")["valor"].astype(float)
     calculada = mapa.set_index("departamento")["pobreza_pct"]
+    faltan = sorted(set(calculada.index) - set(ref_deps.index) - DEPARTAMENTOS_SIN_CIFRA)
+    if faltan:
+        sys.exit(f"La tabla del INEI ({REFERENCIA.name}) no tiene cifra para estos departamentos: {faltan}.")
     diferencia = (calculada - ref_deps).abs()
     nom_col = "NOMBDEP" if "NOMBDEP" in mapa.columns else "nombre"
     tabla = pd.DataFrame({"departamento": mapa.set_index("departamento")[nom_col], "pobreza_pct": calculada.round(2),
                           "referencia_inei": ref_deps, "diferencia": diferencia.round(2)})
-    tabla["dentro_de_tolerancia"] = tabla["diferencia"] <= TOLERANCIA
+    tabla["dentro_de_tolerancia"] = (tabla["diferencia"] <= TOLERANCIA).where(tabla["referencia_inei"].notna())
+    tabla["observacion"] = tabla["referencia_inei"].isna().map({True: SIN_CIFRA_INEI, False: ""})
     COMPARACION.parent.mkdir(exist_ok=True)
     tabla.rename_axis("ccdd").sort_index().to_csv(COMPARACION, encoding="utf-8")
     alejados = diferencia[diferencia > TOLERANCIA]
@@ -110,11 +132,25 @@ def comprobar_referencia(mapa: gpd.GeoDataFrame) -> None:
         sys.exit(f"Estos departamentos difieren más de {TOLERANCIA} puntos de la referencia del INEI: {alejados.round(2).to_dict()}.")
 
 
-def dibujar_departamentos(mapa: gpd.GeoDataFrame) -> None:
+def referenciales() -> list[tuple[str, str]]:
+    """(código, nombre) de los ámbitos que el INEI publica como referenciales: CV > 15 % o nota "referencial"."""
+    tabla = pd.read_csv(REFERENCIA, dtype={"ccdd": str}).dropna(subset=["ccdd"])
+    marcadas = (pd.to_numeric(tabla["cv"], errors="coerce") > 15) | tabla["nota"].fillna("").str.contains("referencial")
+    return sorted(zip(tabla.loc[marcadas, "ccdd"], tabla.loc[marcadas, "ambito"]), key=lambda par: par[1])
+
+
+def nota_referenciales(nombres: list[str]) -> str:
+    lista = f"{', '.join(nombres[:-1])} y {nombres[-1]}" if len(nombres) > 1 else "".join(nombres)
+    return (f"{MARCA_REFERENCIAL} Cifra referencial: el INEI informa un coeficiente de variación mayor que 15 % para "
+            f"{lista}, por lo que su estimación es menos precisa.")
+
+
+def _mapa_base(mapa: gpd.GeoDataFrame):
+    """Figura con el mapa coropleta y su barra de colores (0 a 45 % o más)."""
     figura, eje = plt.subplots(figsize=(7.6, 9.0), facecolor=estilo_graficos.COLOR_FONDO)
     eje.set_facecolor(estilo_graficos.COLOR_FONDO)
     mapa.plot(
-        column="pobreza_pct", ax=eje, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=45.0,
+        column="pobreza_pct", ax=eje, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=ESCALA_MAXIMA,
         edgecolor="#ffffff", linewidth=0.8, legend=True,
         legend_kwds={"label": "% de personas en pobreza", "shrink": 0.45, "aspect": 20, "pad": 0.02},
     )
@@ -127,92 +163,92 @@ def dibujar_departamentos(mapa: gpd.GeoDataFrame) -> None:
     barra.yaxis.label.set_color(estilo_graficos.COLOR_SECUNDARIO)
     for borde in barra.spines.values():
         borde.set_visible(False)
+    return figura, eje
 
-    # Recuadro ampliado para Lima y Callao
-    inset_ax = eje.inset_axes([0.03, 0.15, 0.35, 0.35], facecolor="#f8fafc")
-    lima_callao = mapa[mapa["departamento"].isin(["07", "15"])]
-    lima_callao.plot(
-        column="pobreza_pct", ax=inset_ax, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=45.0,
-        edgecolor="#ffffff", linewidth=1.2,
-    )
-    inset_ax.set_xlim(-77.8, -75.8)
-    inset_ax.set_ylim(-13.2, -11.3)
-    inset_ax.set_xticks([])
-    inset_ax.set_yticks([])
-    inset_ax.set_title("Detalle: Lima y Callao", fontsize=8.5, color=estilo_graficos.COLOR_TEXTO, fontweight="bold", pad=3)
-    for s in inset_ax.spines.values():
-        s.set_color(estilo_graficos.COLOR_LINEA_GUIA)
-        s.set_linewidth(0.8)
 
-    callao_p = mapa.loc[mapa["departamento"] == "07", "pobreza_pct"].iloc[0]
-    lima_p = mapa.loc[mapa["departamento"] == "15", "pobreza_pct"].iloc[0]
-    inset_ax.text(-77.15, -12.05, f"Callao\n{callao_p:.1f} %", fontsize=7.5, color="#ffffff", fontweight="bold", ha="center", va="center")
-    inset_ax.text(-76.55, -11.9, f"Lima\n{lima_p:.1f} %", fontsize=7.5, color=estilo_graficos.COLOR_TEXTO, fontweight="bold", ha="center", va="center")
+def _recuadro_lima(eje, partes: gpd.GeoDataFrame, rotulos: list[tuple[str, float, tuple, bool]]) -> None:
+    """Recuadro ampliado de Lima y Callao, con cada rótulo en tinta oscura y halo claro.
+
+    rotulos: (nombre, valor, posición del texto en grados, si lleva guía hasta su polígono). Los rótulos con guía
+    van sobre el mar, donde no tapan ningún polígono. Los ejes no llevan rótulos: geopandas los pone en inglés.
+    """
+    recuadro = eje.inset_axes([-0.15, 0.06, 0.36, 0.36], facecolor="#f8fafc")  # sobre el mar, sin tapar el mapa
+    partes.plot(column="pobreza_pct", ax=recuadro, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=ESCALA_MAXIMA,
+                edgecolor="#ffffff", linewidth=1.2)
+    recuadro.set_xlim(-77.8, -75.8)
+    recuadro.set_ylim(-13.2, -11.3)
+    recuadro.set_xticks([])
+    recuadro.set_yticks([])
+    recuadro.set_xlabel("")
+    recuadro.set_ylabel("")
+    recuadro.set_title("Detalle: Lima y Callao", fontsize=8.5, color=estilo_graficos.COLOR_TEXTO, fontweight="bold",
+                       pad=3)
+    for borde in recuadro.spines.values():
+        borde.set_color(estilo_graficos.COLOR_LINEA_GUIA)
+        borde.set_linewidth(0.8)
+
+    for (nombre, valor, posicion, con_guia), punto in zip(rotulos, partes.geometry.representative_point()):
+        guia = {"arrowstyle": "-", "color": estilo_graficos.COLOR_TEXTO, "linewidth": 0.7, "shrinkA": 2,
+                "shrinkB": 1} if con_guia else None
+        recuadro.annotate(f"{nombre}\n{valor:.1f} %", xy=(punto.x, punto.y), xytext=posicion, textcoords="data",
+                          ha="left" if con_guia else "center", va="center", fontsize=7.5, fontweight="bold",
+                          color=estilo_graficos.COLOR_TEXTO, path_effects=HALO, arrowprops=guia)
+
+
+def _guardar(figura, destino: Path) -> None:
+    destino.parent.mkdir(exist_ok=True)
+    figura.savefig(destino, dpi=200, facecolor=estilo_graficos.COLOR_FONDO, metadata={"Software": None})
+    plt.close(figura)
+
+
+def dibujar_departamentos(mapa: gpd.GeoDataFrame) -> None:
+    figura, eje = _mapa_base(mapa)
+    por_codigo = mapa.set_index("departamento")
+    partes = mapa[mapa["departamento"].isin(["07", "15"])].set_index("departamento").loc[["07", "15"]]
+    _recuadro_lima(eje, partes, [
+        ("Callao", por_codigo.loc["07", "pobreza_pct"], (-77.74, -11.6), True),
+        ("Lima", por_codigo.loc["15", "pobreza_pct"], (-76.3, -12.6), False),
+    ])
 
     nom_col = "NOMBDEP" if "NOMBDEP" in mapa.columns else "nombre"
     alto, bajo = mapa.loc[mapa["pobreza_pct"].idxmax()], mapa.loc[mapa["pobreza_pct"].idxmin()]
     titulo = "Pobreza monetaria por departamento, Perú 2024"
-    subtitulo = (f"Va de {bajo['pobreza_pct']:.1f} % en {str(bajo[nom_col]).title()} a {alto['pobreza_pct']:.1f} % en "
-                 f"{str(alto[nom_col]).title()}. Lima y Callao se muestran por separado.")
-    fuente = "Fuente: INEI, ENAHO 2024. Límites oficiales del IGN (COD-AB, CC BY-IGO)."
+    subtitulo = (f"Mapa que exige la consigna: 25 departamentos, con Lima como un solo departamento y Callao por "
+                 f"separado. Va de {bajo['pobreza_pct']:.1f} % en {str(bajo[nom_col]).title()} a "
+                 f"{alto['pobreza_pct']:.1f} % en {str(alto[nom_col]).title()}.")
+    fuente = ("Fuente: INEI, ENAHO 2024. Límites oficiales del IGN (COD-AB, CC BY-IGO).\n"
+              f"La cifra del departamento de Lima es un cálculo propio con los microdatos: el INEI publica "
+              f"{LIMA_METROPOLITANA} y {LIMA_PROVINCIAS} por separado.")
     estilo_graficos.encabezado(figura, eje, titulo=titulo, subtitulo=subtitulo, fuente=fuente)
-
-    DESTINO_DEP.parent.mkdir(exist_ok=True)
-    figura.savefig(DESTINO_DEP, dpi=200, facecolor=estilo_graficos.COLOR_FONDO, metadata={"Software": None})
-    plt.close(figura)
+    _guardar(figura, DESTINO_DEP)
 
 
 def dibujar_ambitos(mapa: gpd.GeoDataFrame) -> None:
-    figura, eje = plt.subplots(figsize=(7.6, 9.0), facecolor=estilo_graficos.COLOR_FONDO)
-    eje.set_facecolor(estilo_graficos.COLOR_FONDO)
-    mapa.plot(
-        column="pobreza_pct", ax=eje, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=45.0,
-        edgecolor="#ffffff", linewidth=0.8, legend=True,
-        legend_kwds={"label": "% de personas en pobreza", "shrink": 0.45, "aspect": 20, "pad": 0.02},
-    )
-    eje.set_axis_off()
+    figura, eje = _mapa_base(mapa)
+    por_codigo = mapa.set_index("codigo")
+    partes = mapa[mapa["codigo"].isin(["07", "1501", "15_resto"])].set_index("codigo").loc[["07", "1501", "15_resto"]]
+    metro_p, provs_p = por_codigo.loc["1501", "pobreza_pct"], por_codigo.loc["15_resto", "pobreza_pct"]
+    _recuadro_lima(eje, partes, [
+        ("Callao", por_codigo.loc["07", "pobreza_pct"], (-77.74, -11.6), True),
+        (LIMA_METROPOLITANA, metro_p, (-77.74, -12.85), True),
+        (LIMA_PROVINCIAS, provs_p, (-76.2, -12.4), False),
+    ])
 
-    barra = figura.axes[-1]
-    barra.set_yticks([0, 10, 20, 30, 40, 45])
-    barra.set_yticklabels(["0 %", "10 %", "20 %", "30 %", "40 %", "45 %"])
-    barra.tick_params(colors=estilo_graficos.COLOR_SECUNDARIO, labelsize=8.5, length=0)
-    barra.yaxis.label.set_color(estilo_graficos.COLOR_SECUNDARIO)
-    for borde in barra.spines.values():
-        borde.set_visible(False)
-
-    # Recuadro ampliado para Lima Metropolitana, Lima provincias y Callao
-    inset_ax = eje.inset_axes([0.03, 0.15, 0.35, 0.35], facecolor="#f8fafc")
-    lima_callao = mapa[mapa["codigo"].isin(["07", "1501", "15_resto"])]
-    lima_callao.plot(
-        column="pobreza_pct", ax=inset_ax, cmap=estilo_graficos.ESCALA_MAPA, vmin=0, vmax=45.0,
-        edgecolor="#ffffff", linewidth=1.2,
-    )
-    inset_ax.set_xlim(-77.8, -75.8)
-    inset_ax.set_ylim(-13.2, -11.3)
-    inset_ax.set_xticks([])
-    inset_ax.set_yticks([])
-    inset_ax.set_title("Detalle: Lima y Callao", fontsize=8.5, color=estilo_graficos.COLOR_TEXTO, fontweight="bold", pad=3)
-    for s in inset_ax.spines.values():
-        s.set_color(estilo_graficos.COLOR_LINEA_GUIA)
-        s.set_linewidth(0.8)
-
-    callao_p = mapa.loc[mapa["codigo"] == "07", "pobreza_pct"].iloc[0]
-    metro_p = mapa.loc[mapa["codigo"] == "1501", "pobreza_pct"].iloc[0]
-    provs_p = mapa.loc[mapa["codigo"] == "15_resto", "pobreza_pct"].iloc[0]
-
-    inset_ax.text(-77.15, -12.05, f"Callao\n{callao_p:.1f} %", fontsize=7.0, color="#ffffff", fontweight="bold", ha="center", va="center")
-    inset_ax.text(-76.95, -12.05, f"Lima Metro\n{metro_p:.1f} %", fontsize=6.8, color="#ffffff", fontweight="bold", ha="center", va="center")
-    inset_ax.text(-76.35, -11.75, f"Lima Prov.\n{provs_p:.1f} %", fontsize=6.8, color=estilo_graficos.COLOR_TEXTO, fontweight="bold", ha="center", va="center")
+    # Marca de las cifras referenciales del INEI sobre su ámbito, explicada en la nota al pie.
+    marcados = [(c, n) for c, n in referenciales() if c in por_codigo.index]
+    for codigo, _ in marcados:
+        punto = por_codigo.loc[codigo, "geometry"].representative_point()
+        eje.text(punto.x, punto.y, MARCA_REFERENCIAL, ha="center", va="center", fontsize=14, fontweight="bold",
+                 color=estilo_graficos.COLOR_TEXTO, path_effects=HALO)
 
     titulo = "Pobreza monetaria por ámbito territorial, Perú 2024"
-    subtitulo = (f"26 ámbitos oficiales del INEI: Lima Metropolitana ({metro_p:.1f} %) y Lima provincias "
-                 f"({provs_p:.1f} %) analizadas por separado.")
+    subtitulo = (f"26 ámbitos del INEI, con Lima desagregada: {LIMA_METROPOLITANA} ({metro_p:.1f} %) y "
+                 f"{LIMA_PROVINCIAS} ({provs_p:.1f} %) se analizan por separado.")
     fuente = "Fuente: INEI, ENAHO 2024 (Cuadro III.1). Límites oficiales del IGN (COD-AB, CC BY-IGO)."
+    if marcados:
+        fuente += "\n" + nota_referenciales([n for _, n in marcados])
     estilo_graficos.encabezado(figura, eje, titulo=titulo, subtitulo=subtitulo, fuente=fuente)
-
-    DESTINO_AMBITOS.parent.mkdir(exist_ok=True)
-    figura.savefig(DESTINO_AMBITOS, dpi=200, facecolor=estilo_graficos.COLOR_FONDO, metadata={"Software": None})
-    plt.close(figura)
+    _guardar(figura, DESTINO_AMBITOS)
 
 
 def main() -> None:
@@ -220,12 +256,11 @@ def main() -> None:
     sys.stderr.reconfigure(encoding="utf-8")
     if not BASE.is_file():
         sys.exit(f"Falta {BASE.name} en salidas/. Créala con la skill limpiando-enaho.")
-
-    ruta_geojson = ruta_geojson_departamental()
+    exigir_limites()
     df_base = pd.read_parquet(BASE)
 
-    # 1. Mapa departamental (25 departamentos)
-    mapa_dep = unir_con_limites(pobreza_por_departamento(df_base), gpd.read_file(ruta_geojson))
+    # 1. Mapa departamental (25 departamentos), el que exige la consigna
+    mapa_dep = unir_con_limites(pobreza_por_departamento(df_base), gpd.read_file(GEOJSON_DEP))
     comprobar_referencia(mapa_dep)
     dibujar_departamentos(mapa_dep)
 
@@ -235,11 +270,10 @@ def main() -> None:
     cifras = ", ".join(f"{getattr(fila, nom_col)}: {fila.pobreza_pct:.1f} %" for fila in extremos.itertuples())
     print(f"{DESTINO_DEP.relative_to(RAIZ).as_posix()} ({DEPARTAMENTOS} departamentos con dato; {cifras})")
 
-    # 2. Mapa por ámbitos territoriales (26 ámbitos, Lima desagregada)
-    if GEOJSON_AMBITOS.is_file():
-        mapa_ambitos = unir_ambitos_con_limites(pobreza_por_ambitos(df_base), gpd.read_file(GEOJSON_AMBITOS))
-        dibujar_ambitos(mapa_ambitos)
-        print(f"{DESTINO_AMBITOS.relative_to(RAIZ).as_posix()} ({AMBITOS} ámbitos territoriales con dato)")
+    # 2. Mapa por ámbitos territoriales (26 ámbitos, Lima desagregada), el del análisis
+    mapa_ambitos = unir_ambitos_con_limites(pobreza_por_ambitos(df_base), gpd.read_file(GEOJSON_AMBITOS))
+    dibujar_ambitos(mapa_ambitos)
+    print(f"{DESTINO_AMBITOS.relative_to(RAIZ).as_posix()} ({AMBITOS} ámbitos territoriales con dato)")
 
 
 if __name__ == "__main__":

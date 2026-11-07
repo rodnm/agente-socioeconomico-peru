@@ -1,7 +1,10 @@
 """Pruebas de la capa oficial de límites departamentales y provinciales del IGN (H1 y H8)."""
 
-from pathlib import Path
+import importlib.util
 import json
+import zipfile
+from pathlib import Path
+
 import pytest
 import geopandas as gpd
 from shapely.ops import unary_union
@@ -67,3 +70,89 @@ def test_mapas_generados_existen_y_validos():
     mapa_ambitos = RAIZ / "mapas" / "pobreza_ambitos.png"
     assert mapa_dep.is_file() and mapa_dep.stat().st_size > 10000
     assert mapa_ambitos.is_file() and mapa_ambitos.stat().st_size > 10000
+
+
+# --- preparar_limites.py con un zip falso: comprobaciones de procedencia y de códigos ---
+
+CRS84 = "urn:ogc:def:crs:OGC:1.3:CRS84"
+
+
+def cargar_preparar():
+    ruta = RAIZ / "scripts" / "preparar_limites.py"
+    especificacion = importlib.util.spec_from_file_location("preparar_limites", ruta)
+    modulo = importlib.util.module_from_spec(especificacion)
+    especificacion.loader.exec_module(modulo)
+    return modulo
+
+
+def cuadrado(x: float, y: float) -> dict:
+    return {"type": "Polygon", "coordinates": [[[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1], [x, y]]]}
+
+
+def zip_falso(ruta: Path, codigos=None, crs: str = CRS84) -> Path:
+    """Un zip con la forma del de OCHA HDX: 25 departamentos y dos provincias de Lima, como cuadrados."""
+    codigos = codigos or [f"{i:02d}" for i in range(1, 26)]
+    sistema = {"type": "name", "properties": {"name": crs}}
+    adm1 = {"type": "FeatureCollection", "crs": sistema, "features": [
+        {"type": "Feature", "properties": {"adm1_pcode": f"PE{c}", "adm1_name": f"Departamento {c}"},
+         "geometry": cuadrado(2.0 * i, 0)} for i, c in enumerate(codigos)]}
+    adm2 = {"type": "FeatureCollection", "crs": sistema, "features": [
+        {"type": "Feature", "properties": {"adm2_pcode": "PE1501"}, "geometry": cuadrado(0, 10)},
+        {"type": "Feature", "properties": {"adm2_pcode": "PE1502"}, "geometry": cuadrado(1, 10)}]}
+    with zipfile.ZipFile(ruta, "w") as z:
+        z.writestr("per_admin1.geojson", json.dumps(adm1))
+        z.writestr("per_admin2.geojson", json.dumps(adm2))
+    return ruta
+
+
+@pytest.fixture
+def preparar(tmp_path, monkeypatch):
+    """El script con sus salidas redirigidas a una carpeta temporal."""
+    modulo = cargar_preparar()
+    monkeypatch.setattr(modulo, "RAIZ", tmp_path)
+    monkeypatch.setattr(modulo, "REFERENCIAS", tmp_path / "referencias")
+    monkeypatch.setattr(modulo, "DESTINO_DEP", tmp_path / "referencias" / "departamentos.geojson")
+    monkeypatch.setattr(modulo, "DESTINO_AMBITOS", tmp_path / "referencias" / "ambitos.geojson")
+    return modulo
+
+
+def aceptar_hash(preparar, monkeypatch, archivo: Path) -> Path:
+    monkeypatch.setattr(preparar, "SHA256_ESPERADO", preparar.sha256_archivo(archivo), raising=False)
+    return archivo
+
+
+def test_sha256_fijado_coincide_con_referencias_readme():
+    fijado = cargar_preparar().SHA256_ESPERADO
+    assert len(fijado) == 64 and fijado in (RAIZ / "referencias" / "README.md").read_text(encoding="utf-8")
+
+
+def test_preparar_limites_rechaza_un_zip_con_otro_sha256(preparar, tmp_path):
+    with pytest.raises(SystemExit, match="SHA-256"):
+        preparar.procesar_capas(zip_falso(tmp_path / "otro.zip"))
+    assert not (tmp_path / "referencias").exists()
+
+
+def test_preparar_limites_rechaza_otro_sistema_de_referencia(preparar, tmp_path, monkeypatch):
+    archivo = aceptar_hash(preparar, monkeypatch, zip_falso(tmp_path / "utm.zip", crs="urn:ogc:def:crs:EPSG::32718"))
+    with pytest.raises(SystemExit, match="CRS84"):
+        preparar.procesar_capas(archivo)
+    assert not (tmp_path / "referencias").exists()
+
+
+def test_preparar_limites_exige_los_codigos_01_a_25_uno_a_uno(preparar, tmp_path, monkeypatch):
+    repetido = [f"{i:02d}" for i in range(1, 25)] + ["24"]  # 24 dos veces y falta 25
+    archivo = aceptar_hash(preparar, monkeypatch, zip_falso(tmp_path / "repetido.zip", codigos=repetido))
+    with pytest.raises(SystemExit, match="01 a 25"):
+        preparar.procesar_capas(archivo)
+    assert not (tmp_path / "referencias").exists()
+
+
+def test_preparar_limites_first_iddp_de_las_dos_partes_de_lima_es_15(preparar, tmp_path, monkeypatch):
+    preparar.procesar_capas(aceptar_hash(preparar, monkeypatch, zip_falso(tmp_path / "bueno.zip")))
+    ambitos = gpd.read_file(tmp_path / "referencias" / "ambitos.geojson")
+    lima = ambitos[ambitos["codigo"].isin(["1501", "15_resto"])].set_index("codigo")
+    assert sorted(lima.index) == ["1501", "15_resto"]
+    assert (lima["FIRST_IDDP"] == "15").all()
+    assert list(lima.loc[["1501", "15_resto"], "nombre"]) == ["Lima Metropolitana", "Lima provincias"]
+    resto = ambitos[~ambitos["codigo"].isin(["1501", "15_resto"])]
+    assert len(resto) == 24 and (resto["FIRST_IDDP"] == resto["codigo"]).all()

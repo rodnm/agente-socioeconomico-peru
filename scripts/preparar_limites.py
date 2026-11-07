@@ -3,7 +3,11 @@
 Genera:
   - referencias/limites_departamentales_ign.geojson (25 departamentos, con FIRST_IDDP como alias de ccdd)
   - referencias/limites_ambitos_ign.geojson (26 ámbitos territoriales: 24 departamentos, Callao,
-    Lima Metropolitana provincia 1501 y Lima provincias)
+    Lima Metropolitana provincia 1501 y Lima provincias; FIRST_IDDP es el código de departamento y `codigo`
+    distingue 1501 de 15_resto)
+
+Antes de procesar, comprueba que el zip sea el registrado (SHA-256 de referencias/README.md), que las capas estén
+en CRS84 y que los departamentos tengan los códigos 01 a 25, uno a uno. Si algo no cuadra, se detiene.
 """
 
 import argparse
@@ -33,6 +37,13 @@ URL_HDX = (
 )
 ZIP_LOCAL = DATOS / "per_admin_boundaries.geojson.zip"
 TOLERANCIA_SIMPLIFICACION = 0.004
+# Huella del zip descargado de OCHA HDX y registrado en referencias/README.md. Si HDX publica otra versión, se
+# revisa el contenido y se actualizan ambos lugares a la vez: nunca se procesa un archivo sin verificar.
+SHA256_ESPERADO = "2f0ec51b7a0899b407546aa644621e1c3255cba59fdda76fcde6975ca6baafb3"
+# GeoJSON (RFC 7946) usa longitud y latitud WGS 84; HDX lo declara con este identificador OGC.
+CRS_ACEPTADOS = {"urn:ogc:def:crs:OGC:1.3:CRS84", "urn:ogc:def:crs:OGC::CRS84", "EPSG:4326",
+                 "urn:ogc:def:crs:EPSG::4326"}
+CODIGOS_DEPARTAMENTALES = [f"{i:02d}" for i in range(1, 26)]
 
 
 def sha256_archivo(ruta: Path) -> str:
@@ -83,10 +94,36 @@ def obtener_zip(ruta_zip: Path | None) -> Path:
     )
 
 
-def procesar_capas(archivo_zip: Path) -> None:
-    print(f"Leyendo archivo zip: {archivo_zip.name}")
+def verificar_sha256(archivo_zip: Path) -> None:
+    """Se detiene si el zip no es exactamente el registrado en referencias/README.md."""
     hash_zip = sha256_archivo(archivo_zip)
     print(f"SHA-256 del zip: {hash_zip}")
+    if hash_zip != SHA256_ESPERADO:
+        sys.exit(f"El SHA-256 de {archivo_zip.name} es {hash_zip}, pero el registrado en referencias/README.md es "
+                 f"{SHA256_ESPERADO}. El archivo no es el que se documentó: no se procesa.")
+
+
+def verificar_crs(capa: dict, nombre: str) -> None:
+    """Exige que la capa esté en longitud y latitud WGS 84 (CRS84), el sistema que suponen los mapas."""
+    declarado = (capa.get("crs") or {}).get("properties", {}).get("name")
+    if declarado is not None and declarado not in CRS_ACEPTADOS:
+        sys.exit(f"La capa {nombre} declara el sistema de referencia {declarado}; se esperaba CRS84 "
+                 "(longitud y latitud WGS 84, EPSG:4326).")
+
+
+def verificar_codigos(codigos: list[str]) -> None:
+    """Exige que los 25 departamentos tengan los códigos 01 a 25, uno a uno: sin faltantes ni repetidos."""
+    repetidos = sorted({c for c in codigos if codigos.count(c) > 1})
+    faltantes = sorted(set(CODIGOS_DEPARTAMENTALES) - set(codigos))
+    sobrantes = sorted(set(codigos) - set(CODIGOS_DEPARTAMENTALES))
+    if repetidos or faltantes or sobrantes or len(codigos) != len(CODIGOS_DEPARTAMENTALES):
+        sys.exit(f"La capa departamental debe tener los códigos 01 a 25, uno a uno. Repetidos: {repetidos}; "
+                 f"faltantes: {faltantes}; desconocidos: {sobrantes}.")
+
+
+def procesar_capas(archivo_zip: Path) -> None:
+    print(f"Leyendo archivo zip: {archivo_zip.name}")
+    verificar_sha256(archivo_zip)
 
     with zipfile.ZipFile(archivo_zip, "r") as z:
         archivos = z.namelist()
@@ -97,6 +134,9 @@ def procesar_capas(archivo_zip: Path) -> None:
             data1 = json.load(f1)
         with z.open("per_admin2.geojson") as f2:
             data2 = json.load(f2)
+    verificar_crs(data1, "per_admin1.geojson")
+    verificar_crs(data2, "per_admin2.geojson")
+    verificar_codigos([f["properties"]["adm1_pcode"].replace("PE", "").zfill(2) for f in data1["features"]])
 
     # 2. Capa de 26 ámbitos (H8: Lima Metropolitana provincia 1501 y Lima provincias)
     lima_metro_geom = None
@@ -146,16 +186,18 @@ def procesar_capas(archivo_zip: Path) -> None:
                 "geometry": row["geometry"],
             })
         else:
+            # FIRST_IDDP es siempre el código de departamento (la llave de la consigna); `codigo` distingue la
+            # provincia de Lima (1501) del resto del departamento 15.
             features_26.append({
                 "codigo": "1501",
-                "FIRST_IDDP": "1501",
-                "nombre": "Lima Metropolitana (provincia)",
+                "FIRST_IDDP": "15",
+                "nombre": "Lima Metropolitana",
                 "tipo": "provincia",
                 "geometry": lima_metro_geom,
             })
             features_26.append({
                 "codigo": "15_resto",
-                "FIRST_IDDP": "15P",
+                "FIRST_IDDP": "15",
                 "nombre": "Lima provincias",
                 "tipo": "resto_departamento",
                 "geometry": lima_provincias_geom,

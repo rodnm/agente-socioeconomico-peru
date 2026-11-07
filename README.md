@@ -98,10 +98,10 @@ Los microdatos no se suben al repositorio: `datos/` está en `.gitignore`.
 
 Las genera `informando-peru` a partir de los metadatos de cada fuente consultada (`referencias_apa.py`). Las series del BCRP y los boletines de la SBS cambian con el tiempo, por eso llevan fecha de consulta; las URL exactas de cada consulta están en la tabla de trazabilidad del informe.
 
-- Banco Central de Reserva del Perú. (s. f.-a). *Indicadores de las empresas bancarias - Cartera atrasada neta / Colocaciones netas (%) - Empresas Bancarias* (Serie PN07746EM) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN07746EM/html
-- Banco Central de Reserva del Perú. (s. f.-b). *Índice de precios Lima Metropolitana (var% 12 meses) - IPC* (Serie PN01273PM) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN01273PM/html
-- Banco Central de Reserva del Perú. (s. f.-c). *Producto bruto interno y demanda interna (variación porcentual interanual) - PBI* (Serie PN01728AM) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN01728AM/html
-- Banco Central de Reserva del Perú. (s. f.-d). *Producto bruto interno y otros indicadores - PBI (variación porcentual)* (Serie PM04863AA) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/anuales/resultados/PM04863AA/html
+- Banco Central de Reserva del Perú. (s. f.-a). *Indicadores de las empresas bancarias - Cartera atrasada neta / Colocaciones netas (%) - Empresas Bancarias* (Serie PN07746EM) [Conjunto de datos]. BCRPData. Recuperado el 7 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN07746EM/html
+- Banco Central de Reserva del Perú. (s. f.-b). *Índice de precios Lima Metropolitana (var% 12 meses) - IPC* (Serie PN01273PM) [Conjunto de datos]. BCRPData. Recuperado el 7 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN01273PM/html
+- Banco Central de Reserva del Perú. (s. f.-c). *Producto bruto interno por tipo de gasto (variaciones porcentuales reales) - PBI* (Serie PM04923AA) [Conjunto de datos]. BCRPData. Recuperado el 7 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/anuales/resultados/PM04923AA/html
+- Banco Central de Reserva del Perú. (s. f.-d). *Producto bruto interno y demanda interna (variación porcentual interanual) - PBI* (Serie PN01728AM) [Conjunto de datos]. BCRPData. Recuperado el 7 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN01728AM/html
 - Instituto Geográfico Nacional. (2020). *Peru - Subnational administrative boundaries* (Versión v01) [Conjunto de datos]. OCHA Field Information Services Section; Humanitarian Data Exchange. Recuperado el 5 de noviembre de 2026, de https://data.humdata.org/dataset/cod-ab-per
 - Instituto Nacional de Estadística e Informática. (s. f.-a). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2020: Módulo 02, Características de los miembros del hogar* (Código 737) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/737-Modulo02.zip
 - Instituto Nacional de Estadística e Informática. (s. f.-b). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2020: Módulo 34, Sumarias (variables calculadas)* (Código 737) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/737-Modulo34.zip
@@ -114,13 +114,12 @@ Las genera `informando-peru` a partir de los metadatos de cada fuente consultada
 - Instituto Nacional de Estadística e Informática. (s. f.-i). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024: Módulo 02, Características de los miembros del hogar* (Código 966) [Conjunto de datos]. Recuperado el 2 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip
 - Instituto Nacional de Estadística e Informática. (s. f.-j). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024: Módulo 34, Sumarias (variables calculadas)* (Código 966) [Conjunto de datos]. Recuperado el 2 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip
 - Instituto Nacional de Estadística e Informática. (2025). *Perú: Evolución de la pobreza monetaria, 2015-2024: Informe técnico*. https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf
-- Superintendencia de Banca, Seguros y AFP. (s. f.-a). *Indicadores Financieros por Caja Municipal al 31 de diciembre de 2024* (Boletín C-1301) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/C-1301-di2024.XLS
-- Superintendencia de Banca, Seguros y AFP. (s. f.-b). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2020* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2020/Diciembre/B-2401-di2020.XLS
-- Superintendencia de Banca, Seguros y AFP. (s. f.-c). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2021* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2021/Diciembre/B-2401-di2021.XLS
-- Superintendencia de Banca, Seguros y AFP. (s. f.-d). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2022* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2022/Diciembre/B-2401-di2022.XLS
-- Superintendencia de Banca, Seguros y AFP. (s. f.-e). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2023* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2023/Diciembre/B-2401-di2023.XLS
-- Superintendencia de Banca, Seguros y AFP. (s. f.-f). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2024* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/B-2401-di2024.XLS
-- Superintendencia de Banca, Seguros y AFP. (s. f.-g). *Ranking de Créditos, Depósitos y Patrimonio (bancos) al 31 de diciembre de 2024* (Boletín B-2332) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/B-2332-di2024.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-a). *Indicadores Financieros por Caja Municipal al 31 de diciembre de 2024* (Boletín C-1301) [Conjunto de datos]. Recuperado el 7 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/C-1301-di2024.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-b). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2020* (Boletín B-2401) [Conjunto de datos]. Recuperado el 7 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2020/Diciembre/B-2401-di2020.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-c). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2021* (Boletín B-2401) [Conjunto de datos]. Recuperado el 7 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2021/Diciembre/B-2401-di2021.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-d). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2022* (Boletín B-2401) [Conjunto de datos]. Recuperado el 7 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2022/Diciembre/B-2401-di2022.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-e). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2023* (Boletín B-2401) [Conjunto de datos]. Recuperado el 7 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2023/Diciembre/B-2401-di2023.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-f). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2024* (Boletín B-2401) [Conjunto de datos]. Recuperado el 7 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/B-2401-di2024.XLS
 
 ## 6. Instalación
 
@@ -212,29 +211,28 @@ Las tablas completas salen de `uv run evaluacion/analizar.py` → [`evaluacion/m
 
 ## 11. Ejemplo de una ejecución completa
 
-Una sola ejecución integrada desde la raíz del repositorio respondiendo la pregunta completa (series 2020-2024, morosidad SBS/BCRP y límites IGN):
+Una sola ejecución integrada desde la raíz del repositorio. Antes de correrla se retiraron el plan, el borrador, el informe y las salidas de la ENAHO y del BCRP, para que el agente los produjera desde cero. La ejecución se aísla de la configuración del usuario, porque sin eso hereda su `CLAUDE.md` global, su estilo de salida y sus servidores MCP (ver la sección 10):
 
 ```bash
-claude -p "Investiga esta pregunta y entrégame el informe: ¿Cómo evolucionaron la inflación, la actividad económica, la morosidad bancaria y la pobreza monetaria del Perú entre 2020 y 2024, y qué brechas territoriales y urbano-rurales presentaba la pobreza en 2024? Usa el BCRP para la inflación, la actividad y la morosidad neta, la SBS para la morosidad bancaria 2020-2024 y el contexto financiero, y la ENAHO para la serie de pobreza 2020-2024 y la foto territorial de 2024 con sus mapas. Al final verifica la consistencia de las cifras." \
-  --output-format stream-json --verbose \
-  --allowedTools "Skill,Bash,Read,Write,Edit,Glob,Grep,mcp__bcrp,mcp__sbs" > corrida4.jsonl
+CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 claude -p "Investiga esta pregunta y entrégame el informe: ¿Cómo evolucionaron la inflación, la actividad económica, la morosidad bancaria y la pobreza monetaria del Perú entre 2020 y 2024, y qué brechas territoriales y urbano-rurales presentaba la pobreza en 2024? Usa el BCRP para la inflación, la actividad y la morosidad neta, la SBS para la morosidad bancaria 2020-2024 y el contexto financiero, y la ENAHO para la serie de pobreza 2020-2024 y la foto territorial de 2024 con sus mapas. Al final verifica la consistencia de las cifras."   --model sonnet --setting-sources project,local   --strict-mcp-config --mcp-config .mcp.json   --append-system-prompt "$(cat CLAUDE.md)"   --allowedTools "Skill,Bash(uv run *),Read,Write,Edit,Glob,Grep,mcp__bcrp,mcp__sbs"   --output-format stream-json --verbose > corrida.jsonl
 ```
 
-Usó 2 servidores MCP (`bcrp`, `sbs`) y 3 skills en 63 turnos, 485 segundos, 59 llamadas a herramientas y USD 2.80. La transcripción completa, con su línea de tiempo, está en [`evidencias_ia/integracion/04_corrida_final_series_2020_2024.md`](evidencias_ia/integracion/04_corrida_final_series_2020_2024.md). En resumen:
+La corrida final usó 2 servidores MCP (`bcrp` y `sbs`), 6 herramientas MCP distintas y las 5 skills, en 63 turnos, 297 segundos y USD 0.70. La transcripción completa, con su línea de tiempo, está en [`evidencias_ia/integracion/07_corrida_final_aislada.md`](evidencias_ia/integracion/07_corrida_final_aislada.md). En resumen:
 
 | Pasos | Herramienta | Resultado |
 |---|---|---|
 | 1 | skill `informando-peru` | carga el procedimiento del informe |
-| 8–9, 11–17 | MCP `bcrp.buscar_series` | localiza `PN01273PM` (inflación), `PM04863AA` y `PN01728AM` (PBI) y `PN07746EM` (morosidad neta) |
-| 18, 21–24 | MCP `bcrp.resumen`, `bcrp.serie` | extremos, promedios y series anuales y mensuales |
-| 25–31, 34, 36 | MCP `sbs.indicadores`, `sbs.ranking` | morosidad histórica 2020-2024, ROE, capital global, morosidad de cajas y concentración |
-| 37–40 | MCP `bcrp.graficar_serie` | genera gráficos de inflación, PBI y morosidad bancaria |
-| 10, 49–50 | `armar_informe.py` | [`informes/informe_final.md`](informes/informe_final.md), con 79 cifras trazadas sin ninguna escrita a mano |
-| 41, 51–52 | skill `verificando-consistencia` | [`salidas/consistencia.md`](salidas/consistencia.md): 8 OK, 1 DIFERENCIA (morosidad SBS vs BCRP esperada), 0 FALLA |
+| 3–6 | skill `limpiando-enaho` | reconstruye las bases de 2020 a 2024; 135 validaciones OK frente al informe técnico del INEI |
+| 7–8 | skills `graficando-enaho` y `mapeando-enaho` | gráficos por área, ámbito y serie 2020-2024, y los mapas de 25 departamentos y 26 ámbitos |
+| 10–31 | MCP `bcrp.buscar_series` y `bcrp.resumen` | ubica y resume la inflación, el PBI y la morosidad neta |
+| 13–20, 35 | MCP `sbs.indicadores` | morosidad de la banca múltiple en diciembre de 2020 a 2024 (boletín B-2401) |
+| 32–34, 44–45 | MCP `bcrp.graficar_serie`, `bcrp.comparar_series` y `bcrp.serie` | gráficos del BCRP y comparación de series |
+| 50–52 | `armar_informe.py` | [`informes/informe_final.md`](informes/informe_final.md), con 50 cifras trazadas y referencias APA 7 |
+| 53–55 | skill `verificando-consistencia` | [`salidas/consistencia.md`](salidas/consistencia.md): 8 OK, 1 DIFERENCIA explicada (definiciones de morosidad del BCRP y la SBS), 0 FALLA |
 
-(La corrida preliminar previa con alcance 2024 se conserva en [`evidencias_ia/integracion/03_corrida_final_mcp_y_skills.md`](evidencias_ia/integracion/03_corrida_final_mcp_y_skills.md)).
+Las salidas de la ENAHO regeneradas (CSV, figuras y mapas) coinciden byte a byte con las versionadas. El sello del informe declara 3 archivos sin commitear al momento de generarlo: el borrador, que escribió esta misma corrida, y los archivos de consistencia de una verificación previa. Todos quedaron en el commit siguiente.
 
-Las salidas tabulares (CSV) de la ENAHO regeneradas coinciden byte a byte con las versionadas.
+Dos intentos aislados anteriores reutilizaron el borrador de la cuarta corrida en vez de escribir el suyo; se conservan en `evidencias_ia/integracion/05_…` y `06_…`.
 
 ## 12. Evidencias del uso de IA
 

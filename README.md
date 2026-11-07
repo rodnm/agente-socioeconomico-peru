@@ -66,7 +66,7 @@ El servidor tolera las fallas de la API. Reintenta con espera creciente, valida 
 
 ### Servidor de la SBS (segunda fuente oficial)
 
-[`mcp-sbs-peru`](https://github.com/rodnm/mcp-sbs-peru) lee los boletines estadísticos de la Superintendencia de Banca, Seguros y AFP: morosidad, ROE y liquidez por entidad (`indicadores`), rankings (`ranking`), cualquier boletín por su código (`reporte`), AFP y seguros. En el informe aporta el contexto financiero de 2024. Se instala desde GitHub con `uvx`, sin copiar su código.
+[`mcp-sbs-peru`](https://github.com/rodnm/mcp-sbs-peru) lee los boletines estadísticos de la Superintendencia de Banca, Seguros y AFP: morosidad, ROE y liquidez por entidad (`indicadores`), rankings (`ranking`), cualquier boletín por su código (`reporte`), AFP y seguros. En el informe aporta la morosidad de la banca múltiple a diciembre de cada año de 2020 a 2024 (boletín B-2401) y el contexto financiero de 2024. Se instala desde GitHub con `uvx`, sin copiar su código.
 
 ## 4. Skills
 
@@ -76,7 +76,7 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 |---|---|
 | **`limpiando-enaho`** | Lee los módulos 34 (sumaria) y 02 (miembros) de 2020 a 2024 con las llaves como texto, filtra a los residentes habituales (`((p204==1)&(p205==2))\|((p204==2)&(p206==1))`), une con `merge(..., validate="m:1")` y define `urbano = estrato <= 5` y `pobre = pobreza <= 2`. Pondera por hogar (`factor07 × mieperho`) para las cifras oficiales nacionales, de área y departamentales, y por persona (`facpob07`) para sexo y edad. Valida contra metas oficiales del INEI (Informe Técnico 2025), escribe `salidas/validacion.txt` y genera `salidas/indicadores.csv` con cobertura multianual (columna `anio`). |
 | **`graficando-enaho`** | Grafica la pobreza por área, sexo, edad o departamento, y la serie temporal de evolución 2020-2024 (`figuras/pobreza_serie_2020_2024.png`) con títulos informativos, unidad, periodo y fuente. Si falta la base procesada o los indicadores, corre `limpiando-enaho`. |
-| **`mapeando-enaho`** | Hace los mapas departamental (25 departamentos) y de ámbitos territoriales (26 ámbitos con Lima desagregada) uniendo `ubigeo[:2]` con `FIRST_IDDP` sobre límites oficiales del IGN. Compara cada departamento con el informe técnico oficial del INEI en `salidas/mapa_vs_referencia.csv`. |
+| **`mapeando-enaho`** | Hace los mapas departamental (25 departamentos) y de ámbitos territoriales (26 ámbitos con Lima desagregada) uniendo `ubigeo[:2]` con `FIRST_IDDP` sobre límites oficiales del IGN. Compara cada departamento con el informe técnico del INEI (Cuadro III.1) en `salidas/mapa_vs_referencia.csv`; Lima (departamento 15) figura como "sin cifra publicada por el INEI", porque el INEI la publica desagregada. |
 | `descargando-enaho` | Baja los zip de microdatos del INEI a `datos/`. |
 | ★ `informando-peru` | Arma el informe con marcadores, tabla de trazabilidad y referencias (ver la sección 2). |
 | ★ `verificando-consistencia` | Contrasta las herramientas entre sí y escribe `salidas/consistencia.md` con OK, DIFERENCIA, FALLA o NO VERIFICABLE. Compara la pobreza con dos ponderadores, el mapa con los indicadores, la inflación a 12 meses recalculada desde el índice del IPC con la publicada, `resumen` con `serie` y cada cifra del informe con su fuente. |
@@ -85,22 +85,42 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 
 | Fuente | Enlace | Cómo se obtiene |
 |---|---|---|
-| ENAHO 2020-2024, módulo 34 (sumaria) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip> | `descargando-enaho` |
-| ENAHO 2020-2024, módulo 02 (miembros del hogar) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip> | `descargando-enaho` |
-| Límites oficiales del IGN (25 departamentos y 26 ámbitos) | [`referencias/limites_departamentales_ign.geojson`](referencias/limites_departamentales_ign.geojson) | incluidos en el repositorio (`scripts/preparar_limites.py`, COD-AB) |
+| ENAHO 2020-2024, módulo 34 (sumaria) | `https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/{código}-Modulo34.zip`, con los códigos 737 (2020), 759 (2021), 784 (2022), 906 (2023) y 966 (2024); por ejemplo, [2024](https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip) | `descargando-enaho` |
+| ENAHO 2020-2024, módulo 02 (miembros del hogar) | `https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/{código}-Modulo02.zip`, con los mismos códigos | `descargando-enaho` |
+| Límites oficiales del IGN, publicados en OCHA HDX (COD-AB) | [25 departamentos](referencias/limites_departamentales_ign.geojson) y [26 ámbitos, con Lima desagregada](referencias/limites_ambitos_ign.geojson); procedencia en [`referencias/README.md`](referencias/README.md) | derivados con `scripts/preparar_limites.py` e incluidos en el repositorio |
 | Series del BCRP | API: `https://estadisticas.bcrp.gob.pe/estadisticas/series/api/{código}/json/{desde}/{hasta}` ([documentación](https://estadisticas.bcrp.gob.pe/estadisticas/series/documentos/bcrpdataapi.pdf)) | servidor `bcrp`, al consultar |
 | Boletines de la SBS | archivos oficiales de la SBS; cada respuesta del servidor trae la URL del boletín ([detalle](https://github.com/rodnm/mcp-sbs-peru)) | servidor `sbs`, al consultar |
 | Cifras oficiales de pobreza 2024 (INEI) | [`referencias/inei_pobreza_2024.csv`](referencias/inei_pobreza_2024.csv) | incluida en el repo, extraída de Cuadros III.1 y III.4 del informe técnico del INEI |
 
 Los microdatos no se suben al repositorio: `datos/` está en `.gitignore`.
 
-### Referencias bibliográficas (norma APA 7ma edición)
+### Referencias (APA 7.ª edición)
 
-- **Banco Central de Reserva del Perú.** (2025). *Estadísticas económicas: Series de inflación y actividad económica* [Servicio web de datos / API]. <https://estadisticas.bcrp.gob.pe/estadisticas/series/api/>
-- **Instituto Geográfico Nacional & OCHA HDX.** (2024). *Perú - Subnational Administrative Boundaries* [Conjunto de datos geoespaciales]. Human Data Exchange. <https://data.humdata.org/dataset/cod-ab-per>
-- **Instituto Nacional de Estadística e Informática.** (2025a). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024* [Microdatos, módulos 34 y 02]. <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/>
-- **Instituto Nacional de Estadística e Informática.** (2025b). *Perú: Evolución de la Pobreza Monetaria 2015-2024. Informe técnico*. Lima: INEI. <https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf>
-- **Superintendencia de Banca, Seguros y AFP.** (2024). *Boletín Estadístico de Banca Múltiple y Cajas Municipales (Diciembre 2024)* [Boletines B-2401, C-1301 y B-2332]. <https://intranet2.sbs.gob.pe/estadistica/financiera/>
+Las genera `informando-peru` a partir de los metadatos de cada fuente consultada (`referencias_apa.py`). Las series del BCRP y los boletines de la SBS cambian con el tiempo, por eso llevan fecha de consulta; las URL exactas de cada consulta están en la tabla de trazabilidad del informe.
+
+- Banco Central de Reserva del Perú. (s. f.-a). *Indicadores de las empresas bancarias - Cartera atrasada neta / Colocaciones netas (%) - Empresas Bancarias* (Serie PN07746EM) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN07746EM/html
+- Banco Central de Reserva del Perú. (s. f.-b). *Índice de precios Lima Metropolitana (var% 12 meses) - IPC* (Serie PN01273PM) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN01273PM/html
+- Banco Central de Reserva del Perú. (s. f.-c). *Producto bruto interno y demanda interna (variación porcentual interanual) - PBI* (Serie PN01728AM) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/resultados/PN01728AM/html
+- Banco Central de Reserva del Perú. (s. f.-d). *Producto bruto interno y otros indicadores - PBI (variación porcentual)* (Serie PM04863AA) [Conjunto de datos]. BCRPData. Recuperado el 5 de noviembre de 2026, de https://estadisticas.bcrp.gob.pe/estadisticas/series/anuales/resultados/PM04863AA/html
+- Instituto Geográfico Nacional. (2020). *Peru - Subnational administrative boundaries* (Versión v01) [Conjunto de datos]. OCHA Field Information Services Section; Humanitarian Data Exchange. Recuperado el 5 de noviembre de 2026, de https://data.humdata.org/dataset/cod-ab-per
+- Instituto Nacional de Estadística e Informática. (s. f.-a). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2020: Módulo 02, Características de los miembros del hogar* (Código 737) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/737-Modulo02.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-b). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2020: Módulo 34, Sumarias (variables calculadas)* (Código 737) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/737-Modulo34.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-c). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2021: Módulo 02, Características de los miembros del hogar* (Código 759) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/759-Modulo02.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-d). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2021: Módulo 34, Sumarias (variables calculadas)* (Código 759) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/759-Modulo34.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-e). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2022: Módulo 02, Características de los miembros del hogar* (Código 784) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/784-Modulo02.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-f). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2022: Módulo 34, Sumarias (variables calculadas)* (Código 784) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/784-Modulo34.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-g). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2023: Módulo 02, Características de los miembros del hogar* (Código 906) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/906-Modulo02.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-h). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2023: Módulo 34, Sumarias (variables calculadas)* (Código 906) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/906-Modulo34.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-i). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024: Módulo 02, Características de los miembros del hogar* (Código 966) [Conjunto de datos]. Recuperado el 2 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip
+- Instituto Nacional de Estadística e Informática. (s. f.-j). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024: Módulo 34, Sumarias (variables calculadas)* (Código 966) [Conjunto de datos]. Recuperado el 2 de noviembre de 2026, de https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip
+- Instituto Nacional de Estadística e Informática. (2025). *Perú: Evolución de la pobreza monetaria, 2015-2024: Informe técnico*. https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf
+- Superintendencia de Banca, Seguros y AFP. (s. f.-a). *Indicadores Financieros por Caja Municipal al 31 de diciembre de 2024* (Boletín C-1301) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/C-1301-di2024.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-b). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2020* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2020/Diciembre/B-2401-di2020.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-c). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2021* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2021/Diciembre/B-2401-di2021.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-d). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2022* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2022/Diciembre/B-2401-di2022.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-e). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2023* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2023/Diciembre/B-2401-di2023.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-f). *Indicadores Financieros por Empresa Bancaria al 31 de diciembre de 2024* (Boletín B-2401) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/B-2401-di2024.XLS
+- Superintendencia de Banca, Seguros y AFP. (s. f.-g). *Ranking de Créditos, Depósitos y Patrimonio (bancos) al 31 de diciembre de 2024* (Boletín B-2332) [Conjunto de datos]. Recuperado el 5 de noviembre de 2026, de https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/B-2332-di2024.XLS
 
 ## 6. Instalación
 
@@ -152,6 +172,8 @@ uv run evaluacion/evaluar.py --robustez --modos A B
 
 Son 10 preguntas con respuesta verificable: 4 del BCRP, 4 de la ENAHO y 2 mixtas. Cada una corrió en una sesión nueva de Claude Code (Sonnet), y las respuestas esperadas se fijaron en un commit antes de la primera corrida.
 
+> **Alcance de estos resultados (evaluación v1).** Se midieron sobre el proyecto tal como estaba el 2 de noviembre de 2026, antes de incorporar la ENAHO 2020–2024, la tabla del INEI, los límites del IGN y las referencias APA. Además, el `CLAUDE.md` global y el estilo de salida del usuario se aplicaron en todos los modos (ver la sección 10). Está prevista una evaluación v2, aislada y sobre la versión final, con las mismas preguntas.
+
 | | Sin MCP ni Skills (A) | Con MCP y Skills (B) |
 |---|---|---|
 | Respuestas correctas | 8 de 10 | **10 de 10** |
@@ -180,7 +202,11 @@ Las tablas completas salen de `uv run evaluacion/analizar.py` → [`evaluacion/m
 - **Bloqueo anti-bots del BCRP.** La mañana del 2 de noviembre de 2026 la API del BCRP respondió a todo programa, desde la primera consulta, una página de Imperva («Pardon Our Interruption») con estado 200, mientras el navegador sí cargaba. Por eso el servidor valida el contenido de cada respuesta, reintenta, guarda caché y responde con un error explícito. También por eso las pruebas de robustez simulan la API (`tests/test_robustez_mcp.py`). Una lección: el BCRP entrega su JSON con `Content-Type: text/html`, así que comprobar la cabecera no sirve para saber si respondió datos; hay que leer el cuerpo.
 - **Ponderadores.** La pobreza nacional se reproduce con 27.58 % al ponderar por hogar (`factor07 × mieperho`) y da 27.53 % con `facpob07`. Las dos están dentro de la tolerancia de 0.1 puntos; el verificador reporta la diferencia.
 - **Niveles de agregación.** El BCRP publica series nacionales o de Lima con frecuencia mensual o diaria; la ENAHO da tasas anuales por área y departamento. El informe las presenta juntas como contexto, sin afirmar relaciones causales, y la SBS no publica boletines por departamento.
-- **Evaluación.** El `CLAUDE.md` global y los hooks del usuario se aplican en todos los modos por igual. El Modo A corre en una carpeta temporal con solo los zip crudos y con `--strict-mcp-config`, para que no herede los servidores MCP ni las skills del usuario.
+- **Evaluación v1 sin aislamiento completo.** El Modo A corre en una carpeta temporal con solo los zip crudos y con `--strict-mcp-config`, para que no herede los servidores MCP ni las skills del usuario. Aun así, el `CLAUDE.md` global, las reglas y el estilo de salida del usuario se aplicaron en todos los modos: el Modo A llegó a responder con voseo.
+  - `--setting-sources project,local` no excluye ese `CLAUDE.md`. Se comprobó con palabras testigo que solo aparecen en los archivos globales.
+  - La variable `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` sí lo excluye, sin perder la autenticación.
+  - Como esa variable apaga también el `CLAUDE.md` del proyecto, los modos que lo usan deben recibirlo con `--append-system-prompt-file CLAUDE.md`.
+- **Lima como departamento.** El INEI no publica una cifra de pobreza para el departamento de Lima en conjunto: publica Lima Metropolitana (27.6 %) y Lima provincias (21.7 %). El análisis usa esos dos ámbitos. El agregado del departamento 15 aparece solo donde lo exige la consigna (las 25 unidades del mapa por `ubigeo[:2]`), y no se valida contra el INEI porque no hay cifra oficial con la cual compararlo.
 - **Lo que encontró el propio agente.** En la primera corrida integrada, el verificador marcó la inflación como no verificable. El agente investigó y vio que `verificar.py` usaba `PN01270PM`, el índice del IPC base 2009 que el BCRP descontinuó en diciembre de 2021. Se corrigió por `PN38705PM` (Dic.2021 = 100). En la segunda corrida, el agente leyó las instrucciones de las skills de la ENAHO y corrió sus scripts directamente, sin invocarlas. Ahora `informando-peru` exige invocarlas, porque cada skill trae sus propias reglas, como detenerse si una validación falla.
 - **Permisos en `claude -p`.** Mientras no se acepte el diálogo de confianza del proyecto en una sesión interactiva, Claude Code ignora los permisos de `.claude/settings.json`. Por eso las corridas automáticas pasan `--allowedTools` explícitamente.
 
@@ -234,19 +260,13 @@ Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaro
 
 ## Trabajo futuro
 
-Para la entrega se mantuvo un alcance acotado: el BCRP de 2020 a 2024, la SBS a diciembre de 2024 y la ENAHO 2020-2024. Estas ampliaciones abrirían preguntas nuevas:
+El proyecto ya cubre el BCRP de 2020 a 2024, la morosidad de la SBS a diciembre de cada año de ese periodo y la ENAHO de 2020 a 2024. Estas ampliaciones abrirían preguntas nuevas:
 
 | Ampliación | Pregunta que permitiría responder |
 |---|---|
-| ENAHO de 2020 a 2024, con las validaciones de cada año | ¿Cómo evolucionó la pobreza junto con la inflación y el crecimiento? Hoy el informe combina tendencias nacionales con una sola fotografía territorial. |
-| Morosidad mensual de 2020 a 2024 junto a la inflación | ¿Los cambios de la inflación precedieron a los de la morosidad, y con qué rezago? |
-| Estadísticas financieras por departamento | ¿Los departamentos con más pobreza tienen indicadores financieros distintos? |
-
-- **Morosidad mensual.** El BCRP ya publica la serie mensual de la banca: `PN07746EM`, «Cartera atrasada neta / Colocaciones netas (%)», con fuente SBS, de enero de 2001 a diciembre de 2025.
-  - El MCP actual alcanza para consultarla.
-  - Falta que `comparar_series` admita rezagos.
-  - También falta contrastarla con la morosidad del boletín B-2401 de la SBS, que usa otra definición: créditos atrasados sobre créditos directos.
-- **Estadísticas por departamento.** El catálogo del MCP de la SBS no tiene boletines por departamento, así que haría falta otra fuente.
+| Rezagos entre series en `comparar_series` | ¿Los cambios de la inflación precedieron a los de la morosidad, y con qué rezago? Hoy la herramienta solo alinea periodos coincidentes. |
+| Pobreza departamental de 2020 a 2023 con sus intervalos de confianza | ¿Qué cambios territoriales son estadísticamente distinguibles? El informe del INEI publica intervalos que permitirían contrastarlos. |
+| Estadísticas financieras por departamento | ¿Los departamentos con más pobreza tienen indicadores financieros distintos? El catálogo del MCP de la SBS no tiene boletines por departamento, así que haría falta otra fuente. |
 
 ## Estructura
 
@@ -256,11 +276,11 @@ Para la entrega se mantuvo un alcance acotado: el BCRP de 2020 a 2024, la SBS a 
 ├── .claude/skills/           descargando, limpiando, graficando, mapeando, informando-peru, verificando-consistencia
 ├── mcp/                      server.py y test_server.py
 ├── tests/                    pruebas sin internet
-├── referencias/              cifras oficiales de pobreza 2024 del INEI
+├── referencias/              cifras oficiales del INEI y límites del IGN, con su procedencia
 ├── salidas/  figuras/  mapas/  informes/
 ├── evaluacion/               preguntas, verdades, arnés, resultados y análisis
 ├── dashboard/                app.py y logica.py
-├── scripts/                  exportar_evidencias.py
+├── scripts/                  estilo_graficos.py, preparar_limites.py y exportar_evidencias.py
 └── evidencias_ia/
 ```
 

@@ -4,16 +4,21 @@ import importlib.util
 import json
 import shutil
 import sys
+import urllib.request
 from pathlib import Path
 
+import httpx
 import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
 RAIZ = Path(__file__).resolve().parents[1]
 APP = RAIZ / "dashboard" / "app.py"
-GEOJSON = RAIZ / "referencias" / "limites_departamentales_ign.geojson"
-CODIGOS = [f"{i:02d}" for i in range(1, 26)]
+INDICADORES = RAIZ / "salidas" / "indicadores.csv"
+GEOJSON_AMBITOS = RAIZ / "referencias" / "limites_ambitos_ign.geojson"
+# Los 26 ámbitos del Cuadro III.1 del INEI con los códigos de la capa del IGN: sin el 15, que se desagrega
+AMBITOS = sorted([f"{i:02d}" for i in range(1, 26) if i != 15] + ["1501", "15_resto"])
+SIN_CIFRA = "sin cifra publicada por el INEI"
 
 # Se carga por ruta: el pythonpath de pytest apunta a mcp/ y la raíz no debe ponerse delante del SDK `mcp`
 _spec = importlib.util.spec_from_file_location("dashboard_logica", RAIZ / "dashboard" / "logica.py")
@@ -21,13 +26,42 @@ logica = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(logica)
 
 
-def geo_falso(nombres: dict[str, str] | None = None, codigos: list[str] = CODIGOS) -> dict:
+def geo_falso(nombres: dict[str, str] | None = None, codigos: list[str] = AMBITOS) -> dict:
     """Un GeoJSON mínimo con los códigos dados; los nombres se pueden cruzar para comprobar que se une por código."""
     nombres = nombres or {}
     cuadro = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
     return {"type": "FeatureCollection", "features": [
-        {"type": "Feature", "properties": {"FIRST_IDDP": c, "NOMBDEP": nombres.get(c, f"DEP {c}")}, "geometry": cuadro}
+        {"type": "Feature", "properties": {"codigo": c, "nombre": nombres.get(c, f"Ámbito {c}")}, "geometry": cuadro}
         for c in codigos]}
+
+
+def grupo(id_indicador: str) -> str:
+    """La etiqueta que limpiando-enaho dejó para un id en 2024: las pruebas no fijan el texto de las etiquetas."""
+    ind = logica.cargar_indicadores()
+    return ind.loc[ind["id"] == id_indicador, "grupo"].iat[0]
+
+
+def raiz_temporal(destino: Path, salidas: tuple[str, ...] = ("indicadores.csv",), limites: bool = True) -> Path:
+    """Copia el dashboard a una raíz temporal con las salidas dadas y, si se pide, los límites del IGN."""
+    (destino / "dashboard").mkdir()
+    for nombre in ("app.py", "logica.py"):
+        shutil.copy(RAIZ / "dashboard" / nombre, destino / "dashboard" / nombre)
+    (destino / "salidas" / "bcrp").mkdir(parents=True)
+    for nombre in salidas:
+        shutil.copy(RAIZ / "salidas" / nombre, destino / "salidas" / nombre)
+    if limites:
+        (destino / "referencias").mkdir()
+        shutil.copy(GEOJSON_AMBITOS, destino / "referencias" / GEOJSON_AMBITOS.name)
+    return destino / "dashboard" / "app.py"
+
+
+def trazo(app: AppTest, tipo: str, titulo: str) -> dict:
+    """El primer trazo de tipo dado del gráfico cuyo título contiene el texto dado."""
+    for grafico in app.get("plotly_chart"):
+        spec = json.loads(grafico.proto.spec)
+        if spec["data"][0]["type"] == tipo and titulo in spec["layout"]["title"]["text"]:
+            return spec["data"][0]
+    raise AssertionError(f"No hay un gráfico {tipo} titulado «{titulo}»")
 
 
 @pytest.fixture
@@ -38,9 +72,27 @@ def sin_logica_en_cache():
     sys.modules.pop("logica", None)
 
 
+@pytest.fixture
+def sin_red(monkeypatch):
+    """Hace fallar la prueba si algo intenta descargar por httpx o urllib."""
+    def prohibido(*args, **kwargs):
+        raise AssertionError(f"El dashboard intentó usar la red: {args[:2]}")
+    monkeypatch.setattr(httpx, "get", prohibido)
+    monkeypatch.setattr(httpx.Client, "send", prohibido)
+    monkeypatch.setattr(urllib.request, "urlopen", prohibido)
+
+
+def comparacion_con_lima_sin_cifra(ruta: Path, tolerancia_lima: str) -> None:
+    """Como la escribe mapeando-enaho: Lima (15) sin referencia del INEI; el resto con su cifra del Cuadro III.1."""
+    ruta.write_text("ccdd,departamento,pobreza_pct,referencia_inei,diferencia,dentro_de_tolerancia\n"
+                    "07,CALLAO,33.86,33.9,0.04,True\n"
+                    f"15,LIMA,27.07,,,{tolerancia_lima}\n"
+                    "16,LORETO,43.2,43.0,0.2,False\n", encoding="utf-8")
+
+
 # ---------- la app ----------
 
-def test_la_app_corre_con_las_salidas_versionadas(sin_logica_en_cache):
+def test_la_app_corre_con_las_salidas_versionadas(sin_logica_en_cache, sin_red):
     app = AppTest.from_file(str(APP), default_timeout=60).run()
 
     assert not app.exception
@@ -51,19 +103,62 @@ def test_la_app_corre_con_las_salidas_versionadas(sin_logica_en_cache):
     assert any(c.value.startswith("Fuente: INEI, ENAHO 2024. Ponderado con facpob07") for c in app.caption)
 
 
-def test_la_app_muestra_cada_pestana_cuando_sus_salidas_existen(tmp_path, sin_logica_en_cache):
+def test_la_app_muestra_los_26_ambitos_con_lima_desagregada(sin_logica_en_cache, sin_red):
+    app = AppTest.from_file(str(APP), default_timeout=60).run()
+
+    barras = trazo(app, "bar", "por ámbito")
+    mapa = trazo(app, "choropleth", "por ámbito")
+
+    assert not app.exception
+    assert len(barras["y"]) == 26
+    assert {grupo("pobreza_lima_metropolitana_provincia"), grupo("pobreza_lima_provincias")} <= set(barras["y"])
+    assert grupo("pobreza_dep_15") not in barras["y"]
+    assert sorted(mapa["locations"]) == AMBITOS
+    assert mapa["featureidkey"] == "properties.codigo"
+
+
+def test_la_app_sin_limites_avisa_como_generarlos_y_no_descarga(tmp_path, sin_logica_en_cache, sin_red):
+    app = AppTest.from_file(str(raiz_temporal(tmp_path, limites=False)), default_timeout=60).run()
+
+    assert not app.exception
+    assert any("scripts/preparar_limites.py" in w.value for w in app.warning)
+    assert len(trazo(app, "bar", "por ámbito")["y"]) == 26  # sin mapa, las barras siguen
+
+
+@pytest.mark.parametrize("tolerancia_lima", ["", "False"])
+def test_la_app_muestra_lima_sin_cifra_del_inei_en_el_contraste(tmp_path, sin_logica_en_cache, sin_red,
+                                                                 tolerancia_lima):
+    app_py = raiz_temporal(tmp_path)
+    comparacion_con_lima_sin_cifra(tmp_path / "salidas" / "mapa_vs_referencia.csv", tolerancia_lima)
+
+    app = AppTest.from_file(str(app_py), default_timeout=60).run()
+    contraste = next(e for e in app.expander if "INEI" in e.label)
+    tabla = contraste.dataframe[0].value.set_index("ccdd")
+
+    assert not app.exception
+    assert "Cuadro III.1" in contraste.label and "sesión 16" not in contraste.label
+    assert f"LIMA (15): {SIN_CIFRA}" in contraste.markdown[0].value
+    assert "1 de 2 departamentos con cifra publicada por el INEI" in contraste.markdown[0].value
+    assert tabla.loc["15", "referencia_inei"] == SIN_CIFRA
+    assert not tabla.isna().any().any()
+    assert not tabla.astype(str).isin(["nan", "NaN", "None", "<NA>"]).any().any()
+
+
+def test_la_app_corre_con_indicadores_sin_columna_anio(tmp_path, sin_logica_en_cache, sin_red):
+    app_py = raiz_temporal(tmp_path)
+    ind = pd.read_csv(INDICADORES, dtype={"id": str})
+    ind[ind["anio"] == 2024].drop(columns="anio").to_csv(tmp_path / "salidas" / "indicadores.csv", index=False)
+
+    app = AppTest.from_file(str(app_py), default_timeout=60).run()
+
+    assert not app.exception
+    assert {m.label: m.value for m in app.metric}["Pobreza monetaria nacional"] == "27.6 %"
+    assert len(trazo(app, "bar", "por ámbito")["y"]) == 26
+
+
+def test_la_app_muestra_cada_pestana_cuando_sus_salidas_existen(tmp_path, sin_logica_en_cache, sin_red):
     """Una copia del dashboard en una raíz temporal con todas las salidas opcionales: nada se escribe en el repo."""
-    (tmp_path / "dashboard").mkdir()
-    for nombre in ("app.py", "logica.py"):
-        shutil.copy(RAIZ / "dashboard" / nombre, tmp_path / "dashboard" / nombre)
-    (tmp_path / "salidas" / "bcrp").mkdir(parents=True)
-    for nombre in ("indicadores.csv", "mapa_vs_referencia.csv"):
-        shutil.copy(RAIZ / "salidas" / nombre, tmp_path / "salidas" / nombre)
-    (tmp_path / "datos").mkdir()
-    if GEOJSON.exists():
-        shutil.copy(GEOJSON, tmp_path / "datos" / GEOJSON.name)
-    else:
-        (tmp_path / "datos" / GEOJSON.name).write_text(json.dumps(geo_falso()), encoding="utf-8")
+    raiz_temporal(tmp_path, salidas=("indicadores.csv", "mapa_vs_referencia.csv"))
     pd.DataFrame({"periodo": ["2025-02", "2025-01", "2025-03"], "valor": [3.71, 3.75, 3.68],
                   "codigo": "PD04638PD", "nombre": "Tipo de cambio interbancario venta",
                   "fuente": "https://estadisticas.bcrp.gob.pe/x"}).to_csv(
@@ -90,13 +185,53 @@ def test_la_app_muestra_cada_pestana_cuando_sus_salidas_existen(tmp_path, sin_lo
 
 # ---------- ENAHO ----------
 
-def test_tabla_departamentos_tiene_los_25_con_codigo_de_dos_digitos():
-    tabla = logica.tabla_departamentos(logica.cargar_indicadores())
+def test_tabla_ambitos_tiene_26_con_lima_desagregada_y_sin_el_departamento_15():
+    tabla = logica.tabla_ambitos(logica.cargar_indicadores()).set_index("codigo")
 
-    assert len(tabla) == 25
-    assert tabla["ccdd"].tolist() == CODIGOS
-    assert tabla.set_index("ccdd").loc["15", "nombre"] == "Lima"
-    assert tabla.set_index("ccdd").loc["07", "nombre"] == "Callao"
+    assert tabla.index.tolist() == AMBITOS
+    assert "15" not in tabla.index
+    assert tabla.loc["1501", "pobreza"] == pytest.approx(27.5845)  # Lima Metropolitana sin el Callao
+    assert tabla.loc["15_resto", "pobreza"] == pytest.approx(21.7156)
+    assert tabla.loc["07", "pobreza"] == pytest.approx(33.8599)
+
+
+def test_tabla_ambitos_se_guia_por_el_id_y_no_por_la_etiqueta():
+    ind = logica.cargar_indicadores()
+    etiquetas = {"pobreza_lima_metropolitana": "Lima Metropolitana y Callao",
+                 "pobreza_lima_metropolitana_provincia": "Lima Metropolitana", "pobreza_lima_provincias": "Lima provincias"}
+    ind["grupo"] = ind["id"].map(etiquetas).fillna(ind["grupo"])
+
+    tabla = logica.tabla_ambitos(ind).set_index("codigo")
+
+    assert tabla.loc[["1501", "15_resto"], "nombre"].tolist() == ["Lima Metropolitana", "Lima provincias"]
+    # El dominio 8 (Lima Metropolitana con el Callao, 28.2 %) no es un ámbito
+    assert "Lima Metropolitana y Callao" not in tabla["nombre"].tolist()
+    assert not tabla["pobreza"].round(4).eq(28.2117).any()
+
+
+def test_tabla_ambitos_rechaza_salidas_sin_lima_desagregada():
+    ind = logica.cargar_indicadores()
+
+    with pytest.raises(ValueError, match="26"):
+        logica.tabla_ambitos(ind[ind["id"] != "pobreza_lima_provincias"])
+
+
+def test_cargar_indicadores_filtra_2024_por_defecto():
+    todos = logica.cargar_indicadores(anio=None)
+
+    assert set(todos["anio"]) == {2020, 2021, 2022, 2023, 2024}
+    assert set(logica.cargar_indicadores()["anio"]) == {2024}
+
+
+def test_cargar_indicadores_sin_columna_anio_devuelve_todas_las_filas(tmp_path):
+    ind = pd.read_csv(INDICADORES, dtype={"id": str})
+    ind[ind["anio"] == 2024].drop(columns="anio").to_csv(tmp_path / "indicadores.csv", index=False)
+
+    sin_anio = logica.cargar_indicadores(tmp_path / "indicadores.csv")
+
+    assert "anio" not in sin_anio.columns
+    assert sin_anio["id"].tolist() == logica.cargar_indicadores()["id"].tolist()
+    assert logica.kpis(sin_anio) == logica.kpis(logica.cargar_indicadores())
 
 
 def test_kpis_traen_valor_y_fuente():
@@ -110,57 +245,80 @@ def test_kpis_traen_valor_y_fuente():
     assert "ENAHO 2024" in kpis["Pobreza monetaria nacional"]["ayuda"]
 
 
-@pytest.mark.skipif(not GEOJSON.exists(), reason="falta datos/peru_departamental_simple.geojson (lo baja descargando-enaho)")
-def test_unir_geometria_une_los_25_codigos_con_lima_y_callao_separados():
-    geo = json.loads(GEOJSON.read_text(encoding="utf-8"))
-    unida = logica.unir_geometria(geo, logica.tabla_departamentos(logica.cargar_indicadores())).set_index("ccdd")
+def test_unir_geometria_une_los_26_ambitos_de_la_capa_del_ign():
+    geo = json.loads(GEOJSON_AMBITOS.read_text(encoding="utf-8"))
+    unida = logica.unir_geometria(geo, logica.tabla_ambitos(logica.cargar_indicadores())).set_index("codigo")
 
-    assert sorted(unida.index) == CODIGOS
-    assert unida.loc["15", "pobreza"] == pytest.approx(27.0689)
+    assert sorted(unida.index) == AMBITOS
+    assert unida.loc["1501", "pobreza"] == pytest.approx(27.5845)
+    assert unida.loc["15_resto", "pobreza"] == pytest.approx(21.7156)
     assert unida.loc["07", "pobreza"] == pytest.approx(33.8599)
 
 
 def test_unir_geometria_une_por_codigo_y_no_por_nombre():
-    tabla = logica.tabla_departamentos(logica.cargar_indicadores())
-    cruzado = geo_falso({"07": "LIMA", "15": "CALLAO"})  # nombres intercambiados, códigos correctos
+    tabla = logica.tabla_ambitos(logica.cargar_indicadores())
+    cruzado = geo_falso({"07": "Lima Metropolitana", "1501": "Callao"})  # nombres intercambiados, códigos correctos
 
-    unida = logica.unir_geometria(cruzado, tabla).set_index("ccdd")
+    unida = logica.unir_geometria(cruzado, tabla).set_index("codigo")
 
-    # La figura con código 07 recibe la pobreza del Callao aunque su nombre diga Lima
-    assert unida.loc["07", ["nombre_mapa", "pobreza"]].tolist() == ["LIMA", pytest.approx(33.8599)]
-    assert unida.loc["15", ["nombre_mapa", "pobreza"]].tolist() == ["CALLAO", pytest.approx(27.0689)]
+    # La figura con código 07 recibe la pobreza del Callao aunque su nombre diga Lima Metropolitana
+    assert unida.loc["07", ["nombre_mapa", "pobreza"]].tolist() == ["Lima Metropolitana", pytest.approx(33.8599)]
+    assert unida.loc["1501", ["nombre_mapa", "pobreza"]].tolist() == ["Callao", pytest.approx(27.5845)]
 
 
-def test_unir_geometria_rechaza_si_no_se_unen_los_25():
-    tabla = logica.tabla_departamentos(logica.cargar_indicadores())
+def test_unir_geometria_rechaza_si_no_se_unen_los_26():
+    tabla = logica.tabla_ambitos(logica.cargar_indicadores())
 
-    with pytest.raises(ValueError, match="25"):
-        logica.unir_geometria(geo_falso(codigos=CODIGOS[:24]), tabla)
+    with pytest.raises(ValueError, match="26"):
+        logica.unir_geometria(geo_falso(codigos=AMBITOS[:25]), tabla)
 
 
 def test_el_mapa_usa_una_escala_que_parte_de_cero_titulada_en_porcentaje():
-    tabla = logica.tabla_departamentos(logica.cargar_indicadores())
+    tabla = logica.tabla_ambitos(logica.cargar_indicadores())
     figura = logica.figura_mapa(logica.unir_geometria(geo_falso(), tabla), geo_falso())
 
     assert figura.layout.coloraxis.cmin == 0
     assert figura.layout.coloraxis.colorbar.title.text == "% de personas"
-    assert len(figura.data[0].locations) == 25
-    assert figura.data[0].featureidkey == "properties.FIRST_IDDP"  # plotly también asocia por código
+    assert len(figura.data[0].locations) == 26
+    assert figura.data[0].featureidkey == "properties.codigo"  # plotly también asocia por código
 
 
-def test_cargar_geojson_sin_archivo_ni_red_avisa_sin_fallar(tmp_path):
-    geo, aviso = logica.cargar_geojson(tmp_path / "no.geojson", "http://127.0.0.1:9/peru.geojson")
+def test_cargar_geojson_sin_archivo_indica_preparar_limites_sin_usar_la_red(tmp_path, sin_red):
+    geo, aviso = logica.cargar_geojson(tmp_path / "no.geojson")
 
     assert geo is None
-    assert "mapa" in aviso
+    assert "scripts/preparar_limites.py" in aviso and "mapa" in aviso
 
 
-def test_cargar_geojson_prefiere_el_archivo_local(tmp_path):
-    (tmp_path / "peru.geojson").write_text(json.dumps(geo_falso()), encoding="utf-8")
+def test_cargar_geojson_lee_el_archivo_local(tmp_path, sin_red):
+    (tmp_path / "ambitos.geojson").write_text(json.dumps(geo_falso()), encoding="utf-8")
 
-    geo, aviso = logica.cargar_geojson(tmp_path / "peru.geojson", "http://127.0.0.1:9/peru.geojson")
+    geo, aviso = logica.cargar_geojson(tmp_path / "ambitos.geojson")
 
-    assert aviso is None and len(geo["features"]) == 25
+    assert aviso is None and len(geo["features"]) == 26
+
+
+def test_el_dashboard_lee_los_limites_del_ign_y_no_la_copia_del_curso():
+    assert logica.GEOJSON_AMBITOS == GEOJSON_AMBITOS
+    for archivo in (APP, RAIZ / "dashboard" / "logica.py"):
+        codigo = archivo.read_text(encoding="utf-8")
+        assert "raw.githubusercontent.com" not in codigo and "peru_departamental_simple" not in codigo
+
+
+@pytest.mark.parametrize("tolerancia_lima", ["", "False"])
+def test_tabla_comparacion_rotula_lima_sin_cifra_del_inei(tmp_path, tolerancia_lima):
+    comparacion_con_lima_sin_cifra(tmp_path / "comparacion.csv", tolerancia_lima)
+    comparacion = logica.cargar_comparacion(tmp_path / "comparacion.csv")
+
+    tabla = logica.tabla_comparacion(comparacion).set_index("ccdd")
+    resumen = logica.resumen_comparacion(comparacion)
+
+    assert tabla.loc["15", ["referencia_inei", "diferencia", "dentro_de_tolerancia"]].tolist() == [
+        SIN_CIFRA, "no aplica", "no aplica"]
+    assert tabla.loc["07", ["referencia_inei", "diferencia", "dentro_de_tolerancia"]].tolist() == ["33.9", "0.04", "Sí"]
+    assert tabla.loc["16", "dentro_de_tolerancia"] == "No"
+    assert not tabla.isna().any().any()
+    assert resumen == {"con_referencia": 2, "dentro": 1, "sin_referencia": [("15", "LIMA")]}
 
 
 # ---------- BCRP ----------

@@ -7,11 +7,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from logica import (BCRP, COMPARACION, CONSISTENCIA, GEOJSON, INDICADORES, RESULTADOS, ROBUSTEZ, cargar_comparacion,
-                    cargar_consistencia, cargar_evaluacion, cargar_geojson, cargar_indicadores, cargar_robustez,
-                    catalogo_bcrp, conteo_consistencia, estilo_resultado, figura_barras, figura_mapa, figura_modos,
-                    figura_serie, filas, huella, kpis, nacional, pie_enaho, resumen_evaluacion, resumen_robustez,
-                    series_bcrp, tabla_departamentos, unir_geometria)
+from logica import (BCRP, COMPARACION, CONSISTENCIA, GEOJSON_AMBITOS, INDICADORES, RESULTADOS, ROBUSTEZ, SIN_REFERENCIA,
+                    cargar_comparacion, cargar_consistencia, cargar_evaluacion, cargar_geojson, cargar_indicadores,
+                    cargar_robustez, catalogo_bcrp, conteo_consistencia, estilo_resultado, figura_barras, figura_mapa,
+                    figura_modos, figura_serie, filas, huella, kpis, nacional, pie_enaho, resumen_comparacion,
+                    resumen_evaluacion, resumen_robustez, series_bcrp, tabla_ambitos, tabla_comparacion,
+                    unir_geometria)
 
 st.set_page_config(page_title="Agente socioeconómico del Perú", layout="wide")
 
@@ -32,7 +33,7 @@ def datos(cargador: str, ruta: Path) -> pd.DataFrame:
     return leer(cargador, str(ruta), huella(ruta))
 
 
-@st.cache_resource(show_spinner="Cargando los límites departamentales…", ttl="1h")
+@st.cache_resource(show_spinner="Cargando los límites del IGN…", ttl="1h")
 def geometria(ruta: str, version) -> tuple[dict | None, str | None]:
     return cargar_geojson(Path(ruta))
 
@@ -55,23 +56,31 @@ with tab_enaho:
         with st.container(horizontal=True):
             for k in kpis(ind):
                 st.metric(k["etiqueta"], k["valor"], help=k["ayuda"], border=True)
-        departamentos, tabla = filas(ind, "pobreza_dep_"), tabla_departamentos(ind)
-        mapa_col, barras_col = st.columns(2, gap="large")
-        with mapa_col:
-            geo, aviso = geometria(str(GEOJSON), huella(GEOJSON))
-            try:
-                if geo is None:
-                    raise ValueError(aviso)
-                st.plotly_chart(figura_mapa(unir_geometria(geo, tabla), geo), key="mapa",
-                                alt="Mapa de la pobreza monetaria por departamento del Perú en 2024")
-                st.caption(pie_enaho(departamentos) + " Unión por código de departamento, con Lima y Callao aparte.")
-            except ValueError as error:  # sin límites o con una unión incompleta, el mapa se omite y el resto sigue
-                st.warning(f"{error}", icon=":material/map:")
-        with barras_col:
-            st.plotly_chart(figura_barras(tabla, "pobreza", "Pobreza monetaria por departamento, Perú 2024",
-                                          nacional(ind, departamentos["ponderador"].iat[0]), ordenar=True),
-                            key="departamentos", alt="Barras de la pobreza monetaria por departamento en 2024")
-            st.caption(pie_enaho(departamentos) + " La línea punteada es la pobreza nacional.")
+        try:
+            ambitos = tabla_ambitos(ind)
+        except ValueError as error:  # una salida anterior sin Lima desagregada: se avisa en lugar de mostrar 24
+            ambitos = None
+            st.warning(f"{error}", icon=":material/warning:")
+        if ambitos is not None:
+            mapa_col, barras_col = st.columns(2, gap="large")
+            with mapa_col:
+                geo, aviso = geometria(str(GEOJSON_AMBITOS), huella(GEOJSON_AMBITOS))
+                try:
+                    if geo is None:
+                        raise ValueError(aviso)
+                    st.plotly_chart(figura_mapa(unir_geometria(geo, ambitos), geo), key="mapa",
+                                    alt="Mapa de la pobreza monetaria por ámbito territorial del Perú en 2024")
+                    st.caption(pie_enaho(ambitos) + " Límites: IGN, publicados en OCHA HDX (COD-AB). Unión por "
+                               "código de ámbito, con Lima Metropolitana, Lima provincias y el Callao por separado.")
+                except ValueError as error:  # sin límites o con una unión incompleta, el mapa se omite y el resto sigue
+                    st.warning(f"{error}", icon=":material/map:")
+            with barras_col:
+                st.plotly_chart(figura_barras(ambitos, "pobreza", "Pobreza monetaria por ámbito territorial, Perú 2024",
+                                              nacional(ind, ambitos["ponderador"].iat[0]), ordenar=True),
+                                key="ambitos", alt="Barras de la pobreza monetaria por ámbito territorial en 2024")
+                st.caption(pie_enaho(ambitos) + " Lima se presenta desagregada en Lima Metropolitana (provincia "
+                           "1501) y Lima provincias, como en el Cuadro III.1 del INEI. La línea punteada es la "
+                           "pobreza nacional.")
         for columna, (prefijo, titulo) in zip(st.columns(len(DESGLOSES), gap="large"), DESGLOSES.items()):
             grupo = filas(ind, prefijo)
             if grupo.empty:
@@ -82,16 +91,24 @@ with tab_enaho:
                 st.caption(pie_enaho(grupo))
         comparacion = datos("comparacion", COMPARACION)
         if not comparacion.empty:
-            with st.expander("Contraste del mapa con la referencia del curso (sesión 16)"):
-                dentro = int(comparacion["dentro_de_tolerancia"].astype(str).eq("True").sum())
-                st.markdown(f"{dentro} de {len(comparacion)} departamentos coinciden con la referencia dentro de la "
-                            "tolerancia de mapeando-enaho. Fuente: `salidas/mapa_vs_referencia.csv`.")
-                st.dataframe(comparacion, hide_index=True, alt="Pobreza por departamento frente a la referencia",
+            with st.expander("Contraste del mapa departamental con el informe técnico del INEI (Cuadro III.1)"):
+                r = resumen_comparacion(comparacion)
+                texto = (f"{r['dentro']} de {r['con_referencia']} departamentos con cifra publicada por el INEI "
+                         "coinciden con el Cuadro III.1 del informe técnico del INEI (2025) dentro de la tolerancia "
+                         "de mapeando-enaho.")
+                for codigo, nombre in r["sin_referencia"]:
+                    texto += f" {nombre} ({codigo}): {SIN_REFERENCIA}."
+                    if codigo == "15":
+                        texto += (" El INEI publica por separado Lima Metropolitana y Lima provincias, que aparecen "
+                                  "en el gráfico por ámbito.")
+                st.markdown(texto + " Fuente: `salidas/mapa_vs_referencia.csv`.")
+                st.dataframe(tabla_comparacion(comparacion), hide_index=True,
+                             alt="Pobreza por departamento frente al Cuadro III.1 del INEI",
                              column_config={"ccdd": "Código", "departamento": "Departamento",
-                                            "pobreza_pct": st.column_config.NumberColumn("Pobreza (%)", format="%.2f"),
-                                            "referencia_sesion16": st.column_config.NumberColumn("Referencia (%)",
-                                                                                                 format="%.2f"),
-                                            "diferencia": st.column_config.NumberColumn("Diferencia", format="%.2f"),
+                                            "pobreza_pct": st.column_config.NumberColumn("Pobreza calculada (%)",
+                                                                                         format="%.2f"),
+                                            "referencia_inei": "INEI, Cuadro III.1 (%)",
+                                            "diferencia": "Diferencia (puntos)",
                                             "dentro_de_tolerancia": "Dentro de la tolerancia"})
 
 # ---------- BCRP ----------

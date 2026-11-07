@@ -169,30 +169,31 @@ uv run evaluacion/evaluar.py --robustez --modos A B
 
 ## 9. Resultados de la evaluación
 
-Son 10 preguntas con respuesta verificable: 4 del BCRP, 4 de la ENAHO y 2 mixtas. Cada una corrió en una sesión nueva de Claude Code (Sonnet), y las respuestas esperadas se fijaron en un commit antes de la primera corrida.
+Son 10 preguntas con respuesta verificable: 4 del BCRP, 4 de la ENAHO y 2 mixtas. Cada una corre en una sesión nueva de Claude Code (Sonnet), y las respuestas esperadas se fijaron en un commit antes de la primera corrida.
 
-> **Alcance de estos resultados (evaluación v1).** Se midieron sobre el proyecto tal como estaba el 2 de noviembre de 2026, antes de incorporar la ENAHO 2020–2024, la tabla del INEI, los límites del IGN y las referencias APA. Además, el `CLAUDE.md` global y el estilo de salida del usuario se aplicaron en todos los modos (ver la sección 10). Está prevista una evaluación v2, aislada y sobre la versión final, con las mismas preguntas.
+Estos son los resultados de la **evaluación v2** (7 de noviembre de 2026), sobre la versión final del proyecto. Cada corrida se aisló de la configuración del usuario (ver la sección 10). La v1, sin ese aislamiento y anterior a las fases de corrección, se conserva sin cambios en [`evaluacion/v1/`](evaluacion/v1/).
 
 | | Sin MCP ni Skills (A) | Con MCP y Skills (B) |
 |---|---|---|
-| Respuestas correctas | 8 de 10 | **10 de 10** |
-| Incorrectas o sin respuesta | 2 (Cusco y Lima Metropolitana) | 0 |
-| Tiempo promedio | 38.1 s | 22.2 s |
-| Costo total | USD 2.22 | USD 2.30 |
+| Respuestas correctas | 9 de 10 (v1: 8) | **10 de 10** (v1: 10) |
+| Incorrectas o sin respuesta | 1 (m2: Lima Metropolitana) | 0 |
+| Tiempo promedio | 22.9 s | 18.8 s |
+| Costo total | USD 0.52 | USD 0.57 |
 
 - **Comparación** ([`evaluacion/comparacion.md`](evaluacion/comparacion.md)):
-  - Los dos modos aciertan las cifras del BCRP. B las cita siempre con el código de serie y la URL de la API.
-  - A falla donde la web no alcanza: tomó una cifra departamental de una fuente secundaria y resolvió de otra manera la definición de Lima Metropolitana.
-  - En la revisión manual de las interpretaciones, ninguno de los dos modos fue impecable: B también hizo una afirmación causal sin respaldo en m1.
+  - La única pregunta que separa a los modos es m2. Su respuesta registrada es la pobreza de Lima Metropolitana con el Callao (28.2 %, dominio 8). B respondió 28.21; A respondió 27.6.
+  - Como la tabla del INEI también publica Lima Metropolitana sin el Callao (27.6 %), la pregunta admite dos lecturas. Se mantiene la calificación registrada y se declara la ambigüedad como limitación.
+  - En la revisión manual de las interpretaciones, A hizo una afirmación causal sin respaldo en m1; B la evitó, pero no distinguió un mes de inflación de una tasa anual de encuesta.
+  - La diferencia entre v1 y v2 mezcla dos cambios: el del proyecto y el aislamiento. El Modo A casi no cambió de contenido, así que refleja sobre todo el aislamiento: en v1 respondió con voseo y en v2 ninguna respuesta lo hace.
 - **Ablación** ([`evaluacion/ablacion.md`](evaluacion/ablacion.md)):
-  - Sin herramientas, el modelo acierta 2 de 10 y responde «no sé» en 6.
-  - Con solo el MCP acierta 8, porque repite los errores de la ENAHO del Modo A.
-  - Con solo las skills acierta 10, porque llamó a la API del BCRP por su cuenta.
-  - La primera versión de la ablación tenía fugas entre componentes, y se documenta cómo se corrigió.
-- **Robustez:** son 12 pedidos ambiguos, imposibles o con premisas dudosas, con la conducta esperada fijada antes de correr.
-  - El Modo A cumplió la conducta en 11 y el Modo B en 10. Ninguno inventó un dato inexistente.
-  - En los pedidos de causalidad y de dos fuentes de morosidad, la revisión manual aprobó a los dos modos.
-  - En el de frecuencias incompatibles, B correlacionó promedios mensuales con `comparar_series`. A dio como cifra principal la correlación con los datos diarios y usó el promedio mensual solo como control.
+  - Sin herramientas, el modelo acierta 2 de 10 y responde «no sé» en 7.
+  - Con solo el MCP acierta 8. Consulta el BCRP por el MCP y busca la ENAHO en la web, donde falla en Cusco y en Lima Metropolitana.
+  - Con solo las skills, y sin la herramienta propia, acierta 9: su único error es m2, por la misma ambigüedad de definición.
+  - La primera corrida de `solo-mcp` en la v2 no pudo arrancar el servidor del BCRP: a su copia le faltaba un archivo que el servidor importa. Se corrigió la copia, se agregó una prueba que lo detecta y se repitió el modo.
+- **Robustez:** son 12 pedidos ambiguos, imposibles o con premisas dudosas, con la conducta esperada fijada antes de correr. El Modo A cumplió la conducta en 11 y el Modo B en 10.
+  - En r4 ("departamento 26"), A interpretó el código como Tacna en lugar de declarar que no existe.
+  - En r10, B respondió con los datos 2020–2024 que ahora tiene el proyecto. Su expectativa se fijó antes de que esos datos existieran y no se cambió después de ver los resultados.
+  - En los pedidos de causalidad, frecuencias incompatibles y dos fuentes de morosidad, la revisión manual aprobó a B y dio a A un cumplimiento parcial.
 
 Las tablas completas salen de `uv run evaluacion/analizar.py` → [`evaluacion/metricas.md`](evaluacion/metricas.md). Los datos están en [`resultados.csv`](evaluacion/resultados.csv) y [`robustez_resultados.csv`](evaluacion/robustez_resultados.csv).
 

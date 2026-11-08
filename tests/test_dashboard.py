@@ -12,7 +12,7 @@ from streamlit.testing.v1 import AppTest
 
 RAIZ = Path(__file__).resolve().parents[1]
 APP = RAIZ / "dashboard" / "app.py"
-GEOJSON = RAIZ / "datos" / "peru_departamental_simple.geojson"
+GEOJSON = RAIZ / "referencias" / "limites_departamentales_ign.geojson"
 CODIGOS = [f"{i:02d}" for i in range(1, 26)]
 
 # Se carga por ruta: el pythonpath de pytest apunta a mcp/ y la raíz no debe ponerse delante del SDK `mcp`

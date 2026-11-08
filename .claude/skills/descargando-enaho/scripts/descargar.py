@@ -1,7 +1,6 @@
-"""Baja a datos/ los módulos 34 y 02 de la ENAHO 2024 y los límites departamentales."""
+"""Baja a datos/ los módulos 34 y 02 de la ENAHO 2024."""
 
 import argparse
-import json
 import os
 import sys
 import time
@@ -16,10 +15,6 @@ ANIO = 2024
 CODIGO_INEI = 966
 URL_INEI = "https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA"
 MODULOS = ("34", "02")
-URL_GEOJSON = (
-    "https://raw.githubusercontent.com/d2cml-ai/Data-Science-Python/main/"
-    "sessions/06-geoespacial/lab/Data/peru_departamental_simple.geojson"
-)
 
 INTENTOS = 3
 PAUSA_SEGUNDOS = 5
@@ -33,15 +28,6 @@ def zip_valido(ruta: Path) -> bool:
         with zipfile.ZipFile(ruta) as archivo:
             return archivo.testzip() is None and len(archivo.namelist()) > 0
     except zipfile.BadZipFile:
-        return False
-
-
-def geojson_valido(ruta: Path) -> bool:
-    if not ruta.is_file():
-        return False
-    try:
-        return len(json.loads(ruta.read_text(encoding="utf-8"))["features"]) == 25
-    except (json.JSONDecodeError, KeyError, TypeError, UnicodeDecodeError):
         return False
 
 
@@ -87,7 +73,6 @@ def main() -> None:
     for modulo in MODULOS:
         nombre = f"{CODIGO_INEI}-Modulo{modulo}.zip"
         descargar(f"{URL_INEI}/{nombre}", DATOS / nombre, zip_valido)
-    descargar(URL_GEOJSON, DATOS / "peru_departamental_simple.geojson", geojson_valido)
 
 
 if __name__ == "__main__":

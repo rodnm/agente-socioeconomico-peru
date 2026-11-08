@@ -89,7 +89,7 @@ def test_fecha_invalida_se_rechaza_sin_llamar_a_la_api(api):
 
 def test_busqueda_ambigua_devuelve_candidatos_y_la_absurda_ninguno(api):
     candidatos = llamar("buscar_series", texto="ipc")
-    assert {c["codigo"] for c in candidatos} == {"PN01270PM", "PN01271PM", "PN01273PM"}
+    assert {c["codigo"] for c in candidatos} == {"PN01270PM", "PN38705PM", "PN01271PM", "PN01273PM"}
     assert llamar("buscar_series", texto="inflacion de narnia") == []
 
 

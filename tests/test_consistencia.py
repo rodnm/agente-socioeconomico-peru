@@ -72,9 +72,26 @@ def test_bcrp_detecta_una_variacion_que_no_sale_del_indice(verificar, api):
     assert fila["resultado"] == "DIFERENCIA" and "2024-06" in fila["detalle"]
 
 
+def test_bcrp_recalcula_con_el_indice_vigente(verificar, api):
+    # PN01270PM (base 2009) se descontinuó en diciembre de 2021; el índice vigente es PN38705PM (base Dic.2021).
+    api.respuestas = respuestas_ipc()
+    reg = verificar.Registro()
+    verificar.verificar_bcrp(reg, 2024)
+    assert "/PN38705PM/" in api.pedidas[0]
+    assert set(resultados(reg, "BCRP").values()) == {"OK"}
+
+
+def test_bcrp_sin_datos_no_se_atribuye_a_una_caida(verificar, api):
+    api.respuestas = [periodos()]
+    reg = verificar.Registro()
+    verificar.verificar_bcrp(reg, 2024)
+    assert set(resultados(reg, "BCRP").values()) == {"NO VERIFICABLE"}
+    assert all("no tiene datos" in f["detalle"] and "no respondió" not in f["explicacion"] for f in reg.filas)
+
+
 def test_bcrp_caido_no_se_reemplaza_por_estimaciones(verificar, api):
     api.respuestas = [HTML]
     reg = verificar.Registro()
     verificar.verificar_bcrp(reg, 2024)
     assert set(resultados(reg, "BCRP").values()) == {"NO VERIFICABLE"}
-    assert all("HTML" in f["detalle"] for f in reg.filas)
+    assert all("HTML" in f["detalle"] and "no respondió" in f["explicacion"] for f in reg.filas)

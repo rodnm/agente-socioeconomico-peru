@@ -1,5 +1,17 @@
 # Encadenamiento de skills: mapa sin base procesada (claude -p, 2026-11-02)
 
+## Línea de tiempo
+
+Servidores MCP: ninguno · Skills: `mapeando-enaho`, `limpiando-enaho` · 7 llamadas a herramientas
+
+1. Skill `mapeando-enaho`
+2. Bash `cd ~/Documents/GitHub/agente-socioeconomico-peru && ls salidas/personas_2024.parquet datos`
+3. Skill `limpiando-enaho`
+4. Bash `cd ~/Documents/GitHub/agente-socioeconomico-peru && ls datos/966-Modulo34.zip datos/966-Mo`
+5. Bash `cd ~/Documents/GitHub/agente-socioeconomico-peru && uv run ~/Documents/GitHub/agente-socio`
+6. Bash `cd ~/Documents/GitHub/agente-socioeconomico-peru && uv run ~/Documents/GitHub/agente-socio`
+7. `Read`
+
 ## 1. Pedido (claude -p)
 
 Haz un mapa de la pobreza monetaria por departamento con ENAHO 2024.

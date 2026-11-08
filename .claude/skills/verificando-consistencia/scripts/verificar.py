@@ -3,7 +3,8 @@
     uv run .claude/skills/verificando-consistencia/scripts/verificar.py [--anio-bcrp 2024]
 
 Resultados posibles: OK (coinciden dentro de la tolerancia), DIFERENCIA (no coinciden, por una razón conocida que se
-explica), FALLA (no coinciden y no debería pasar) y NO VERIFICABLE (la fuente no respondió). Sale con error solo si
+explica), FALLA (no coinciden y no debería pasar) y NO VERIFICABLE (la fuente no respondió o no tiene datos del
+periodo). Sale con error solo si
 hay alguna FALLA.
 """
 import argparse
@@ -20,7 +21,9 @@ SALIDAS = RAIZ / "salidas"
 INFORME = RAIZ / "informes" / "informe_final.md"
 BORRADOR = RAIZ / "informes" / "borrador.md"
 ARMAR = RAIZ / ".claude" / "skills" / "informando-peru" / "scripts" / "armar_informe.py"
-IPC_INDICE, IPC_12_MESES = "PN01270PM", "PN01273PM"  # IPC de Lima Metropolitana: índice y variación a 12 meses
+# IPC de Lima Metropolitana: índice vigente (Dic.2021 = 100) y variación a 12 meses. El índice base 2009, PN01270PM,
+# quedó descontinuado en diciembre de 2021.
+IPC_INDICE, IPC_12_MESES = "PN38705PM", "PN01273PM"
 TOLERANCIA_ENAHO = 0.1      # puntos porcentuales, la del enunciado
 TOLERANCIA_RECALCULO = 0.05  # puntos: el índice se publica con 2 decimales y la variación sale del índice sin redondear
 
@@ -96,8 +99,10 @@ def verificar_bcrp(reg, anio):
             ("resumen", {"codigo": IPC_12_MESES, "desde": desde, "hasta": hasta})]))
     except Exception as e:
         motivo = str(e).splitlines()[0][:200]
+        explicacion = ("La serie no cubre ese periodo; revisa el código con buscar_series." if "no tiene datos" in motivo
+                       else "El BCRP no respondió con datos.") + " No se estima nada en su lugar."
         for v in ("Inflación a 12 meses recalculada desde el índice", "resumen frente a serie"):
-            reg.agregar("BCRP", v, "NO VERIFICABLE", motivo, "El BCRP no respondió: no se estima nada en su lugar.")
+            reg.agregar("BCRP", v, "NO VERIFICABLE", motivo, explicacion)
         return
     if "índice" not in indice["nombre"].lower() and "indice" not in indice["nombre"].lower():
         reg.agregar("BCRP", "Inflación a 12 meses recalculada desde el índice", "NO VERIFICABLE",

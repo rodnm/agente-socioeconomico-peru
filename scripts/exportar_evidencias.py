@@ -45,6 +45,9 @@ PEGADO = re.compile(r"<pasted_content[^>]*>\n?(.*?)\n?</pasted_content[^>]*>", r
 # Antigravity envuelve el pedido y le agrega la hora local; solo el pedido es lo que escribió la persona.
 SOLICITUD = re.compile(r"<USER_REQUEST>\n?(.*?)\n?</USER_REQUEST>", re.DOTALL)
 FRAGMENTOS_DE_ANTIGRAVITY = Path(".system_generated") / "logs" / "chunks" / "transcript_full"
+# Lo que una herramienta leyó de un archivo binario trae bytes de control; escritos en bruto, el Markdown deja de ser
+# texto para algunos visores.
+CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
 def ocultar(texto, extra=()):
@@ -164,7 +167,7 @@ def a_markdown(eventos, titulo, pedido=None, extra=(), asistente="Claude"):
                     contenido, list) else str(contenido)
                 lineas += ["<details><summary>Resultado de la herramienta</summary>", "", "```text",
                            recortar(ocultar(texto, extra), LIMITE_RESULTADO), "```", "</details>", ""]
-    return ocultar("\n".join(lineas), extra)
+    return CONTROL.sub(lambda m: f"\\x{ord(m.group()):02x}", ocultar("\n".join(lineas), extra))
 
 
 def main():

@@ -116,6 +116,14 @@ def test_los_recordatorios_del_sistema_siguen_fuera(exportar):
     assert md.count(". Pedido") == 1 and "Contexto interno" not in md
 
 
+def test_los_caracteres_de_control_quedan_visibles(exportar):
+    eventos = [{"type": "user", "message": {"content": [
+        {"type": "tool_result", "content": "cabecera\x00binaria \x1b[31mrojo\x7f\tcon tab"}]}}]
+    md = exportar.a_markdown(eventos, "Sesión")
+    assert "cabecera\\x00binaria \\x1b[31mrojo\\x7f\tcon tab" in md  # el tabulador y los saltos de línea se conservan
+    assert not any(ord(c) < 32 and c not in "\n\r\t" or ord(c) == 127 for c in md)
+
+
 def paso(indice, tipo, fuente="MODEL", **campos):
     return {"step_index": indice, "source": fuente, "type": tipo, "status": "DONE",
             "created_at": f"2026-11-05T18:27:{indice:02d}Z", **campos}

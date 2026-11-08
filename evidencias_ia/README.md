@@ -1,6 +1,6 @@
 # Evidencias del uso de IA
 
-El proyecto se desarrolló con Claude Code en una sola sesión, con subagentes para tareas acotadas, y con corridas automáticas de `claude -p` para demostrar y evaluar el agente. La excepción son las fases 0 a 5 del plan de rigor de fuentes, que ejecutó Gemini en Google Antigravity y que Claude revisó y corrigió después; esa revisión está en la sesión de desarrollo. La conversación con Gemini no se exportó: su trabajo consta en sus 6 commits, que declaran a Gemini como coautor. Las transcripciones se exportaron con [`scripts/exportar_evidencias.py`](../scripts/exportar_evidencias.py) (opción B del enunciado):
+El proyecto se desarrolló con Claude Code en una sola sesión, con subagentes para tareas acotadas, y con corridas automáticas de `claude -p` para demostrar y evaluar el agente. La excepción son las fases 0 a 5 del plan de rigor de fuentes, que ejecutó Gemini en Google Antigravity y que Claude revisó y corrigió después; esa revisión está en la sesión de desarrollo. La conversación con Gemini está en [`gemini/`](gemini/), y sus 6 commits declaran a Gemini como coautor. Las transcripciones se exportaron con [`scripts/exportar_evidencias.py`](../scripts/exportar_evidencias.py) (opción B del enunciado):
 - Cada archivo empieza con una línea de tiempo de las herramientas usadas.
 - Conserva los pedidos, las respuestas, cada llamada a una herramienta con sus argumentos y un extracto de cada resultado.
 - Oculta rutas personales, nombres de usuario, correos, claves y tokens, antes de recortar cada resultado. Con `--ocultar` se agregan otros textos, como el usuario de un correo que aparece sin la @.
@@ -16,7 +16,7 @@ El proyecto se desarrolló con Claude Code en una sola sesión, con subagentes p
 - Las corridas integradas, la evaluación y las correcciones que surgieron de ellas.
 - La propuesta de preguntas pegada el 5 de noviembre, de la que salieron cuatro pedidos de robustez nuevos y la sección de trabajo futuro.
 
-A mitad de la sesión, Claude Code compactó el contexto. El resumen que generó aparece plegado y no cuenta como pedido de la persona.
+Claude Code compactó el contexto varias veces durante la sesión. Los resúmenes que generó aparecen plegados y no cuentan como pedidos de la persona.
 
 Algunos hitos para buscar en el archivo:
 
@@ -30,6 +30,15 @@ Algunos hitos para buscar en el archivo:
 | Revisión de código aprobada | `acknowledge-approved` |
 | Ablación con fugas y su corrección | `crudos-con-mcp` |
 | Propuesta pegada y robustez ampliada | `Texto pegado`, `r12` |
+
+## Sesión con Gemini
+
+[`gemini/01_sesion_fases_0_a_5.md`](gemini/01_sesion_fases_0_a_5.md) es la conversación completa con Gemini en Google Antigravity, el 5 de noviembre, en la que ejecutó las fases 0 a 5 del plan de rigor de fuentes. Se exportó con el mismo script, desde la carpeta de la sesión en Antigravity:
+- Las respuestas figuran como de Gemini.
+- Los resúmenes de las cuatro compactaciones de contexto y los mensajes del sistema de Antigravity aparecen plegados.
+- El razonamiento interno del modelo no se exporta, igual que en las sesiones de Claude.
+
+La revisión que hizo Claude de ese trabajo, con los errores que encontró y sus correcciones, está en la sesión de desarrollo.
 
 ## Subagentes
 

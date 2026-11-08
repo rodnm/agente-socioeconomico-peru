@@ -239,13 +239,14 @@ Dos intentos aislados anteriores reutilizaron el borrador de la cuarta corrida e
 
 **Coautoría.** Rodrigo Norabuena dirigió el proyecto y lo escribió junto con dos asistentes de IA. Claude Code (Claude Opus 5.5) desarrolló la mayor parte. Gemini, en Google Antigravity, ejecutó las fases 0 a 5 del plan de rigor de fuentes, y Claude revisó y corrigió después su trabajo. Cada commit declara a su coautor con una línea `Co-Authored-By`; `git log --format='%h %(trailers:key=Co-Authored-By,valueonly)'` los lista.
 
-Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/):
+Las conversaciones con Claude Code y con Gemini están en [`evidencias_ia/`](evidencias_ia/):
 - la sesión de desarrollo completa;
+- la sesión con Gemini en Google Antigravity (`gemini/`), con las fases 0 a 5;
 - los subagentes (`subagentes/`);
 - la demostración de encadenamiento de skills (`skills/`);
 - las corridas integradas (`integracion/`).
 
-Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaron con [`scripts/exportar_evidencias.py`](scripts/exportar_evidencias.py), que convierte las transcripciones JSONL de Claude Code en Markdown y oculta rutas personales, nombres de usuario, correos, claves y tokens.
+Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaron con [`scripts/exportar_evidencias.py`](scripts/exportar_evidencias.py), que convierte las transcripciones JSONL de Claude Code y las sesiones de Antigravity en Markdown y oculta rutas personales, nombres de usuario, correos, claves y tokens.
 
 ## Innovaciones
 

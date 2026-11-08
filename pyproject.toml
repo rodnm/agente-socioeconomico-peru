@@ -1,0 +1,26 @@
+[project]
+name = "agente-socioeconomico-peru"
+version = "0.1.0"
+description = "Agente de investigación socioeconómica: series del BCRP por MCP y microdatos de la ENAHO 2024 por Skills"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=4,<5",
+    "httpx",
+    "matplotlib>=3.11.2",
+    "pandas>=3.1.0",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv]
+# No es un paquete instalable: la carpeta mcp/ no debe chocar con el SDK `mcp` del que depende FastMCP
+package = false
+
+[tool.pytest.ini_options]
+# El servidor se importa como `from server import mcp`, igual que en la sesión 04
+pythonpath = ["mcp"]
+testpaths = ["mcp", "tests"]
+markers = ["live: consulta las fuentes oficiales reales (necesita internet)"]

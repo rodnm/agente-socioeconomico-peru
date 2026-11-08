@@ -1,6 +1,6 @@
 # Evidencias del uso de IA
 
-Todo el proyecto se desarrolló con Claude Code en una sola sesión, con subagentes para tareas acotadas, y con corridas automáticas de `claude -p` para demostrar y evaluar el agente. Las transcripciones se exportaron con [`scripts/exportar_evidencias.py`](../scripts/exportar_evidencias.py) (opción B del enunciado):
+El proyecto se desarrolló con Claude Code en una sola sesión, con subagentes para tareas acotadas, y con corridas automáticas de `claude -p` para demostrar y evaluar el agente. La excepción son las fases 0 a 5 del plan de rigor de fuentes, que ejecutó Gemini en Google Antigravity y que Claude revisó y corrigió después; esa revisión está en la sesión de desarrollo. La conversación con Gemini no se exportó: su trabajo consta en sus 6 commits, que declaran a Gemini como coautor. Las transcripciones se exportaron con [`scripts/exportar_evidencias.py`](../scripts/exportar_evidencias.py) (opción B del enunciado):
 - Cada archivo empieza con una línea de tiempo de las herramientas usadas.
 - Conserva los pedidos, las respuestas, cada llamada a una herramienta con sus argumentos y un extracto de cada resultado.
 - Oculta rutas personales, nombres de usuario, correos, claves y tokens, antes de recortar cada resultado. Con `--ocultar` se agregan otros textos, como el usuario de un correo que aparece sin la @.

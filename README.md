@@ -237,6 +237,8 @@ Dos intentos aislados anteriores reutilizaron el borrador de la cuarta corrida e
 
 ## 12. Evidencias del uso de IA
 
+**Coautoría.** Rodrigo Norabuena dirigió el proyecto y lo escribió junto con dos asistentes de IA. Claude Code (Claude Opus 5.5) desarrolló la mayor parte. Gemini, en Google Antigravity, ejecutó las fases 0 a 5 del plan de rigor de fuentes, y Claude revisó y corrigió después su trabajo. Cada commit declara a su coautor con una línea `Co-Authored-By`; `git log --format='%h %(trailers:key=Co-Authored-By,valueonly)'` los lista.
+
 Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/):
 - la sesión de desarrollo completa;
 - los subagentes (`subagentes/`);

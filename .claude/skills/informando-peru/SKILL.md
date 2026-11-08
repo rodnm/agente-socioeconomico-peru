@@ -31,5 +31,6 @@ El informe se escribe en dos pasos: Claude redacta un borrador con **marcadores*
 ## Reglas
 
 - Asociación no es causalidad: una serie nacional mensual y una encuesta anual por departamento no prueban relaciones entre sí.
-- Cada hallazgo cita su fuente en la misma oración: código de serie y periodo, o indicador de la ENAHO 2024.
-- El script agrega la tabla de trazabilidad y las referencias; no las escribas a mano.
+- Cada hallazgo cita su fuente en la misma oración: código de serie y periodo, boletín de la SBS y periodo, o indicador y año de la ENAHO.
+- El script agrega la tabla de trazabilidad y las referencias; no las escribas a mano. Las referencias siguen la norma APA 7 y salen de los metadatos de cada respuesta: una por serie del BCRP, por boletín y periodo de la SBS y por año y módulo de la ENAHO, más el informe técnico del INEI cuando se usa la ENAHO y los límites del IGN cuando el informe incluye un mapa de `mapas/`. Si una fuente no trae metadatos suficientes, el informe lo advierte en lugar de completarla.
+- El sello de la trazabilidad nombra el commit y advierte si hay cambios sin commitear en los insumos. Un informe para entregar se arma sobre un árbol commiteado.

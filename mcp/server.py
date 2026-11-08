@@ -315,6 +315,25 @@ def _eje_x(periodos, frecuencia):
     return pd.to_datetime(list(periodos))
 
 
+PORCENTAJES = ("%", "variacion porcentual", "porcentaje")
+
+
+def _unidad_del_eje(ficha):
+    """La unidad del eje Y según el nombre de la serie en el catálogo (grupo y nombre), o None si no se sabe.
+
+    Las variaciones porcentuales del BCRP no siempre llevan «%» en el nombre: el PBI mensual dice «variación
+    porcentual interanual». Por eso se buscan también esas palabras, sin distinguir tildes.
+    """
+    nombre = _sin_tildes(ficha["nombre"])
+    if any(clave in nombre for clave in PORCENTAJES):
+        return "%"
+    if "soles" in nombre or "s/" in nombre or "tipo de cambio" in nombre:
+        return "S/ por US$"
+    if "indice" in nombre:
+        return "Índice"
+    return None
+
+
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True,
                        "openWorldHint": True})
 def graficar_serie(codigo: str, desde: str, hasta: str, titulo: str | None = None) -> dict:
@@ -330,20 +349,18 @@ def graficar_serie(codigo: str, desde: str, hasta: str, titulo: str | None = Non
     ax.set_facecolor(estilo_graficos.COLOR_FONDO)
     ax.plot(_eje_x(s.index, ficha["frecuencia"]), s.to_numpy(), color=estilo_graficos.COLOR_PRINCIPAL, linewidth=1.8)
 
-    nombre_l = ficha["nombre"].lower()
-    if "%" in nombre_l or "var%" in nombre_l:
-        ax.set_ylabel("%", color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9)
-    elif "soles" in nombre_l or "s/" in nombre_l or "tipo de cambio" in nombre_l:
-        ax.set_ylabel("S/ por US$", color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9)
-    elif "índice" in nombre_l or "indice" in nombre_l:
-        ax.set_ylabel("Índice", color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9)
+    unidad = _unidad_del_eje(ficha)
+    if unidad:
+        ax.set_ylabel(unidad, color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9)
 
     if s.min() < 0 < s.max():
-        ax.axhline(0, color=estilo_graficos.COLOR_LINEA_GUIA, linewidth=0.8, linestyle="--")
+        ax.axhline(0, color=estilo_graficos.COLOR_SECUNDARIO, linewidth=0.8)
     estilo_graficos.estilizar_ejes(ax)
 
     titulo_texto = titulo or ficha["nombre"]
-    subtitulo_texto = f"{ficha['nombre'][:100]} · {s.index[0]} a {s.index[-1]}"
+    # El nombre va completo (el encabezado lo envuelve) y el periodo no se parte entre dos líneas.
+    periodo = estilo_graficos.ESPACIO_FIJO.join((s.index[0], "a", s.index[-1]))
+    subtitulo_texto = f"{ficha['nombre']} · {periodo}"
     fuente_texto = f"Fuente: BCRP, serie {codigo} ({ficha['frecuencia'].lower()})."
     estilo_graficos.encabezado(fig, ax, titulo=titulo_texto, subtitulo=subtitulo_texto, fuente=fuente_texto)
 

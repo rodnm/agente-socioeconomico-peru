@@ -15,7 +15,13 @@ evaluacion/ (donde están las respuestas esperadas). Las configuraciones:
     solo-skills  B sin los servidores MCP ni el código de mcp/ (Bash podría llamar sus funciones directamente)
     sin-propia   B sin la herramienta propia comparar_series
 
-Escribe evaluacion/resultados.csv (o robustez_resultados.csv) y un resumen por modo en la consola.
+Todos los modos corren aislados de la configuración global del usuario (evaluación v2, hipótesis H7): la variable
+CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 apaga todo CLAUDE.md, --setting-sources project,local deja fuera los settings.json del
+usuario y --strict-mcp-config sus servidores MCP. Como la variable apaga también el CLAUDE.md del proyecto, los modos
+cuya copia lo incluye (B, solo-skills, sin-propia) lo reciben con --append-system-prompt.
+
+Escribe evaluacion/resultados.csv (o robustez_resultados.csv) y un resumen por modo en la consola. Cada fila registra en
+«aislamiento» la configuración usada, para distinguirla de las filas de la v1, que corrieron sin aislamiento.
 """
 import argparse
 import json
@@ -63,6 +69,10 @@ MODOS = {  # (qué se copia, argumentos de claude -p)
 }
 # Lo que nunca se copia: las respuestas esperadas, la historia y el entorno (se reutiliza por UV_PROJECT_ENVIRONMENT)
 EXCLUIDOS = {".git", ".venv", "evaluacion", "evidencias_ia", "odd", ".pytest_cache", "__pycache__", "informes"}
+# Aislamiento de la configuración del usuario (H7): --setting-sources no excluye el CLAUDE.md global; la variable sí.
+SIN_CLAUDE_MD = {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
+SOLO_CONFIGURACION_DEL_PROYECTO = ["--setting-sources", "project,local"]
+AISLAMIENTO = "claude_md_desactivado+setting_sources_project_local"
 
 
 def preparar(copia, destino):
@@ -78,11 +88,20 @@ def preparar(copia, destino):
             shutil.copytree(RAIZ / "mcp", destino / "mcp", ignore=shutil.ignore_patterns("__pycache__"))
             for archivo in (".mcp.json", "pyproject.toml", "uv.lock"):
                 shutil.copy(RAIZ / archivo, destino)
+            # El servidor importa el estilo de los gráficos al arrancar; sin él, el modo se queda sin BCRP.
+            (destino / "scripts").mkdir()
+            shutil.copy(RAIZ / "scripts" / "estilo_graficos.py", destino / "scripts")
         return
     shutil.copytree(RAIZ, destino, dirs_exist_ok=True, ignore=lambda d, nombres: [n for n in nombres if n in EXCLUIDOS])
     if copia == "proyecto-sin-mcp":  # las herramientas son funciones de Python: con el código, Bash las llamaría igual
         shutil.rmtree(destino / "mcp")
         (destino / ".mcp.json").unlink()
+
+
+def reglas_del_proyecto(carpeta):
+    """El CLAUDE.md de la copia como prompt de sistema adicional, porque SIN_CLAUDE_MD apaga también el del proyecto."""
+    archivo = carpeta / "CLAUDE.md"
+    return ["--append-system-prompt", archivo.read_text(encoding="utf-8")] if archivo.is_file() else []
 
 
 def herramientas_usadas(eventos):
@@ -111,8 +130,8 @@ def preguntar(texto, modo, modelo, robustez=False):
         esquema, instruccion = (ESQUEMA_ROBUSTEZ, INSTRUCCION_ROBUSTEZ) if robustez else (ESQUEMA, INSTRUCCION)
         cmd = ["claude", "-p", instruccion + texto, "--output-format", "stream-json", "--verbose",
                "--json-schema", json.dumps(esquema), "--no-session-persistence", "--model", modelo,
-               "--strict-mcp-config", *argumentos]
-        entorno = os.environ | {"UV_PROJECT_ENVIRONMENT": str(RAIZ / ".venv")}
+               "--strict-mcp-config", *argumentos, *SOLO_CONFIGURACION_DEL_PROYECTO, *reglas_del_proyecto(Path(tmp))]
+        entorno = os.environ | {"UV_PROJECT_ENVIRONMENT": str(RAIZ / ".venv")} | SIN_CLAUDE_MD
         t = time.time()
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=900, cwd=tmp,
@@ -170,7 +189,7 @@ def main():
                   "conducta_observada": r.get("conducta"), "supuesto": r.get("supuesto", ""),
                   "respuesta": r.get("respuesta", ""), "herramientas": r["herramientas"], "segundos": r["segundos"],
                   "resultado": "cumple" if r.get("conducta") in q["conducta_esperada"].split("|") else "no cumple",
-                  "error": r["error"]} for (q, m), r in zip(casos, respuestas)]
+                  "error": r["error"], "aislamiento": AISLAMIENTO} for (q, m), r in zip(casos, respuestas)]
         destino = AQUI / "robustez_resultados.csv"
     else:
         filas = []
@@ -179,6 +198,7 @@ def main():
                                              "tolerancia_2")}, "modo": m, **r}
             fila["resultado"] = calificar(fila)
             fila["lenguaje_causal"] = lenguaje_causal(r.get("interpretacion", ""))
+            fila["aislamiento"] = AISLAMIENTO
             filas.append(fila)
         destino = AQUI / "resultados.csv"
     res = pd.DataFrame(filas)

@@ -6,6 +6,7 @@ import re
 import sys
 import zipfile
 from pathlib import Path
+from typing import NamedTuple
 
 import pandas as pd
 
@@ -34,52 +35,77 @@ COLUMNAS_PERSONAS = LLAVES_PERSONA + ["p203", "p204", "p205", "p206", "p207", "p
 # Largo fijo de cada código en la ENAHO. Si es menor, se perdieron ceros a la izquierda.
 LARGO_CODIGOS = {"conglome": 6, "vivienda": 3, "hogar": 2, "codperso": 2, "ubigeo": 6}
 
-# Metas oficiales transcritas del Informe Técnico del INEI (2025):
-# Cuadro 3.1 (p. 64), Cuadro 3.4 (p. 72) y Anexo Cuadro 3.1 (p. 220).
-METAS_HISTORICAS = {
-    2020: {
-        "nacional": 30.1, "urbana": 26.0, "rural": 45.7, "extrema": 5.1,
-        "lima_metropolitana_provincia": 26.6, "lima_provincias": 26.5,
-        "hogares": 34_490, "filas_mod02": 126_831, "residentes": 118_810,
-        "cuadro_pobreza": "Cuadro 3.1", "pagina_pobreza": 64,
-        "cuadro_extrema": "Cuadro 3.4", "pagina_extrema": 72,
-        "cuadro_lima": "Anexo Cuadro 3.1", "pagina_lima": 220,
-    },
-    2021: {
-        "nacional": 25.9, "urbana": 22.3, "rural": 39.7, "extrema": 4.1,
-        "lima_metropolitana_provincia": 24.4, "lima_provincias": 26.4,
-        "hogares": 34_245, "filas_mod02": 121_067, "residentes": 113_057,
-        "cuadro_pobreza": "Cuadro 3.1", "pagina_pobreza": 64,
-        "cuadro_extrema": "Cuadro 3.4", "pagina_extrema": 72,
-        "cuadro_lima": "Anexo Cuadro 3.1", "pagina_lima": 220,
-    },
-    2022: {
-        "nacional": 27.5, "urbana": 24.1, "rural": 41.1, "extrema": 5.0,
-        "lima_metropolitana_provincia": 26.9, "lima_provincias": 22.9,
-        "hogares": 34_213, "filas_mod02": 121_253, "residentes": 113_142,
-        "cuadro_pobreza": "Cuadro 3.1", "pagina_pobreza": 64,
-        "cuadro_extrema": "Cuadro 3.4", "pagina_extrema": 72,
-        "cuadro_lima": "Anexo Cuadro 3.1", "pagina_lima": 220,
-    },
-    2023: {
-        "nacional": 29.0, "urbana": 26.4, "rural": 39.8, "extrema": 5.7,
-        "lima_metropolitana_provincia": 28.1, "lima_provincias": 26.1,
-        "hogares": 33_886, "filas_mod02": 119_747, "residentes": 110_792,
-        "cuadro_pobreza": "Cuadro 3.1", "pagina_pobreza": 64,
-        "cuadro_extrema": "Cuadro 3.4", "pagina_extrema": 72,
-        "cuadro_lima": "Anexo Cuadro 3.1", "pagina_lima": 220,
-    },
-    2024: {
-        "nacional": 27.6, "urbana": 24.8, "rural": 39.3, "extrema": 5.5,
-        "lima_metropolitana": 28.2, "lima_metropolitana_provincia": 27.6, "lima_provincias": 21.7,
-        "hogares": 33_691, "filas_mod02": 117_721, "residentes": 108_664,
-        "cuadro_pobreza": "Cuadro III.1", "pagina_pobreza": 219,
-        "cuadro_extrema": "Cuadro III.4", "pagina_extrema": 72,
-        "cuadro_lima": "Cuadro III.1", "pagina_lima": 220,
-    },
+INFORME_INEI = ("INEI (2025), Perú: Evolución de la pobreza monetaria, 2015-2024. Informe técnico; "
+                "páginas impresas del PDF con SHA-256 ed964c41c963f0ac5ce11b1713680ec93519838b9db0cd8fa139e6bb922d6c73")
+
+
+class Meta(NamedTuple):
+    """Una cifra publicada por el INEI y el lugar del informe donde se lee."""
+    valor: float
+    cuadro: str
+    pagina: int
+    ic_inf: float | None = None
+    ic_sup: float | None = None
+    nota: str = ""
+
+
+# Ubicación de cada meta en el informe técnico del INEI (2025), verificada contra el texto del PDF; la página
+# impresa es la del visor menos 2. Los dos cuadros traen la serie 2015-2024 completa, pero el intervalo de confianza
+# al 95 % y el coeficiente de variación solo se publican para 2024.
+UBICACION_INEI = {
+    "nacional": ("Cuadro III.1", 219),
+    "urbana": ("Cuadro III.1", 219),
+    "rural": ("Cuadro III.1", 219),
+    "lima_metropolitana_callao": ("Cuadro III.1", 219),  # dominio 8: Lima Metropolitana y el Callao
+    "lima_metropolitana": ("Cuadro III.1", 220),         # provincia 1501, «Lima Metropolitana 1/»
+    "lima_provincias": ("Cuadro III.1", 220),            # resto del departamento 15, «Lima 2/»
+    "extrema": ("Cuadro III.4", 223),
 }
 
+# Columnas 2020 a 2023 de esos cuadros. Las metas de 2024, con su IC y su CV, se leen de la tabla
+# referencias/inei_pobreza_2024.csv, transcrita de los mismos cuadros.
+METAS_INEI = {
+    2020: {"nacional": 30.1, "urbana": 26.0, "rural": 45.7, "extrema": 5.1,
+           "lima_metropolitana_callao": 27.5, "lima_metropolitana": 26.6, "lima_provincias": 26.5},
+    2021: {"nacional": 25.9, "urbana": 22.3, "rural": 39.7, "extrema": 4.1,
+           "lima_metropolitana_callao": 24.9, "lima_metropolitana": 24.4, "lima_provincias": 26.4},
+    2022: {"nacional": 27.5, "urbana": 24.1, "rural": 41.1, "extrema": 5.0,
+           "lima_metropolitana_callao": 27.3, "lima_metropolitana": 26.9, "lima_provincias": 22.9},
+    2023: {"nacional": 29.0, "urbana": 26.4, "rural": 39.8, "extrema": 5.7,
+           "lima_metropolitana_callao": 28.7, "lima_metropolitana": 28.1, "lima_provincias": 26.1},
+}
+# Fila de referencias/inei_pobreza_2024.csv (columna ambito) que da cada meta de 2024.
+FILAS_REFERENCIA_2024 = {
+    "nacional": "Nacional", "urbana": "Urbana", "rural": "Rural", "extrema": "Pobreza extrema",
+    "lima_metropolitana_callao": "Lima Metropolitana con Callao", "lima_metropolitana": "Lima Metropolitana",
+    "lima_provincias": "Lima provincias",
+}
+
+# Conteos de filas de los archivos .dta del INEI, leídos de los zip de cada año. No son cifras publicadas: sirven
+# para detectar un archivo distinto o incompleto, o un filtro de residentes que cambió. Los 108,664 residentes
+# de 2024 son, además, la cifra que pide la consigna del curso.
+CONTEOS_ARCHIVOS_INEI = {
+    2020: {"hogares": 34_490, "filas_mod02": 126_831, "residentes": 118_810},
+    2021: {"hogares": 34_245, "filas_mod02": 121_067, "residentes": 113_057},
+    2022: {"hogares": 34_213, "filas_mod02": 121_253, "residentes": 113_142},
+    2023: {"hogares": 33_886, "filas_mod02": 119_747, "residentes": 110_792},
+    2024: {"hogares": 33_691, "filas_mod02": 117_721, "residentes": 108_664},
+}
+AVISO_CONTEO = "conteo del archivo del INEI, no es una cifra publicada"
+
+# El INEI publica las tasas con un decimal. Replicar su método con los mismos microdatos debe dar una cifra que
+# redondee a la publicada; 0.1 puntos es el margen que fija la consigna para esa réplica. No es una prueba
+# estadística: la incertidumbre de muestreo la dan los intervalos de confianza del INEI, que se informan en 2024.
 TOLERANCIA = 0.1
+# La pobreza oficial se pondera por hogar (factor07 × mieperho). La línea con facpob07, el factor de cada persona,
+# es solo un contraste de sensibilidad con otro ponderador, no una réplica del método oficial. Sus diferencias
+# frente a la cifra publicada, en puntos, son 0.09 (2020), 0.16 (2021), 0.02 (2022), 0.02 (2023) y 0.07 (2024):
+# 2021 supera 0.1, así que el contraste usa 0.2 de 2020 a 2023; 2024 conserva el 0.1 de la consigna.
+TOLERANCIA_FACPOB07 = 0.2
+
+
+def tolerancia_facpob07(anio: int) -> float:
+    return TOLERANCIA if anio == ANIO else TOLERANCIA_FACPOB07
 
 # Nombres para mostrar; la unión con el mapa usa siempre el código, nunca el nombre.
 DEPARTAMENTOS = {
@@ -90,6 +116,9 @@ DEPARTAMENTOS = {
 }
 GRUPOS_EDAD = [0, 15, 30, 45, 60, 200]
 NOMBRES_EDAD = ["0 a 14 años", "15 a 29 años", "30 a 44 años", "45 a 59 años", "60 años y más"]
+# El mismo peso en los cinco años: factor07 × mieperho reproduce las cifras publicadas por el INEI en cada uno.
+# La sumaria de 2020 y de 2021 solo trae factor07. El módulo 02 de 2020 trae además factor_p («factor de expansión
+# anual - tipo presencial»), con valor solo en 63,866 de sus 126,831 filas; no se usa. El de 2021 no lo trae.
 PESO_HOGAR = "factor07 × mieperho (por hogar)"
 PESO_PERSONA = "facpob07 (por persona)"
 
@@ -129,35 +158,59 @@ class Validacion:
         self.lineas.append(f"{'OK   ' if correcto else 'FALLA'} {nombre}: {detalle}")
         self.fallos += not correcto
 
-    def igual(self, nombre: str, valor: int, esperado: int, nota: str = "") -> None:
-        desc = f"{valor:,} (conteo en microdatos {nota})" if nota else f"{valor:,} (esperado {esperado:,})"
-        self.registrar(nombre, valor == esperado, desc)
+    def nota(self, texto: str) -> None:
+        """Una aclaración que no es una comprobación: no cuenta como OK ni como FALLA."""
+        self.lineas.append(f"NOTA  {texto}")
 
-    def cifra(self, nombre: str, valor: float, esperado: float, ic_inf: float | None = None,
-              ic_sup: float | None = None, cuadro: str = "", pagina: int | str = "", nota: str = "",
-              tolerancia: float = TOLERANCIA) -> None:
-        correcto = abs(valor - esperado) <= tolerancia
-        meta_str = f"meta INEI {esperado} ± {tolerancia} %"
-        if ic_inf is not None and ic_sup is not None and not pd.isna(ic_inf):
-            meta_str += f", IC 95%: [{ic_inf:.1f}, {ic_sup:.1f}]"
-        if cuadro and pagina and not pd.isna(pagina):
-            meta_str += f", {cuadro}, p. {pagina}"
-        if nota and not pd.isna(nota):
-            meta_str += f" ({nota})"
-        self.registrar(nombre, correcto, f"{valor:.2f} % ({meta_str})")
+    def igual(self, nombre: str, valor: int, esperado: int, aviso: str = "") -> None:
+        self.registrar(nombre, valor == esperado, f"{valor:,} (esperado {esperado:,}{'; ' + aviso if aviso else ''})")
+
+    def cifra(self, nombre: str, valor: float, meta: Meta, tolerancia: float = TOLERANCIA, aviso: str = "") -> None:
+        detalle = f"meta INEI {meta.valor} ± {tolerancia} %"
+        if meta.ic_inf is not None and meta.ic_sup is not None:
+            detalle += f", IC 95 %: [{meta.ic_inf:.1f}, {meta.ic_sup:.1f}]"
+        detalle += f", {meta.cuadro}, p. {meta.pagina}"
+        detalle += "".join(f"; {texto}" for texto in (meta.nota, aviso) if texto)
+        self.registrar(nombre, abs(valor - meta.valor) <= tolerancia, f"{valor:.2f} % ({detalle})")
+
+
+def _opcional(valor) -> float | None:
+    return None if pd.isna(valor) else float(valor)
+
+
+def leer_referencia_2024(ruta: Path = REFERENCIA_INEI) -> pd.DataFrame:
+    if not ruta.is_file():
+        sys.exit(f"Falta {ruta.name} en referencias/: sin las cifras publicadas por el INEI no hay contra qué validar.")
+    return pd.read_csv(ruta, dtype={"ccdd": str})
+
+
+def meta_de_fila(fila) -> Meta:
+    nota = "" if pd.isna(fila.nota) else str(fila.nota)
+    return Meta(float(fila.valor), str(fila.cuadro), int(fila.pagina), _opcional(fila.ic_inf), _opcional(fila.ic_sup),
+                nota)
+
+
+def metas_del_anio(anio: int, ruta_referencia: Path = REFERENCIA_INEI) -> dict[str, Meta]:
+    """Las cifras publicadas por el INEI contra las que se valida el año, con su cuadro y su página."""
+    if anio in METAS_INEI:
+        return {clave: Meta(valor, *UBICACION_INEI[clave]) for clave, valor in METAS_INEI[anio].items()}
+    tabla = leer_referencia_2024(ruta_referencia).set_index("ambito")
+    faltan = [ambito for ambito in FILAS_REFERENCIA_2024.values() if ambito not in tabla.index]
+    if faltan:
+        sys.exit(f"Faltan las filas {faltan} en {ruta_referencia.name}.")
+    return {clave: meta_de_fila(tabla.loc[[ambito]].iloc[0]) for clave, ambito in FILAS_REFERENCIA_2024.items()}
 
 
 def validar(sumaria: pd.DataFrame, modulo02: pd.DataFrame, personas: pd.DataFrame,
             base: pd.DataFrame, anio: int) -> Validacion:
     v = Validacion()
-    metas = METAS_HISTORICAS.get(anio, {})
-    hogares_esperados = metas.get("hogares", len(sumaria))
-    filas_mod02_esperadas = metas.get("filas_mod02", len(modulo02))
-    residentes_esperados = metas.get("residentes", len(personas))
+    conteos = CONTEOS_ARCHIVOS_INEI[anio]
+    metas = metas_del_anio(anio)
 
-    v.igual("Hogares en la sumaria", len(sumaria), hogares_esperados, f"sumaria-{anio}.dta")
-    v.igual("Filas del módulo 02", len(modulo02), filas_mod02_esperadas, f"enaho01-{anio}-200.dta")
-    v.igual("Residentes habituales", len(personas), residentes_esperados, f"enaho01-{anio}-200.dta con filtro habitual")
+    v.igual("Hogares en la sumaria", len(sumaria), conteos["hogares"], f"sumaria-{anio}.dta, {AVISO_CONTEO}")
+    v.igual("Filas del módulo 02", len(modulo02), conteos["filas_mod02"], f"enaho01-{anio}-200.dta, {AVISO_CONTEO}")
+    v.igual("Residentes habituales", len(personas), conteos["residentes"],
+            f"enaho01-{anio}-200.dta con el filtro de residentes, {AVISO_CONTEO}")
     v.igual("Llaves de hogar repetidas", int(sumaria.duplicated(LLAVES_HOGAR).sum()), 0)
     v.igual("Llaves de persona repetidas", int(personas.duplicated(LLAVES_PERSONA).sum()), 0)
     v.igual("Filas de la base tras la unión", len(base), len(personas))
@@ -167,75 +220,46 @@ def validar(sumaria: pd.DataFrame, modulo02: pd.DataFrame, personas: pd.DataFram
 
     # La pobreza oficial se calcula por hogar: factor07 × mieperho expande cada hogar a sus personas.
     hogares = base.drop_duplicates(LLAVES_HOGAR)
-    v.igual("Hogares en la base", len(hogares), hogares_esperados, "base de hogares")
+    v.igual("Hogares en la base", len(hogares), conteos["hogares"])
     peso = hogares["peso_hogar"]
 
-    pob_nac = metas.get("nacional", 27.6)
-    cuadro_pob = metas.get("cuadro_pobreza", "Cuadro 3.1")
-    pag_pob = metas.get("pagina_pobreza", 64)
-    v.cifra("Pobreza nacional (hogares, factor07 × mieperho)", tasa(hogares["pobre"], peso), pob_nac,
-            cuadro=cuadro_pob, pagina=pag_pob)
-    tol_facpob = 0.1 if anio == 2024 else 0.2
-    v.cifra("Pobreza nacional (personas, facpob07)", tasa(base["pobre"], base["facpob07"]), pob_nac,
-            cuadro=cuadro_pob, pagina=pag_pob, nota="ponderador facpob07", tolerancia=tol_facpob)
+    def pobreza_de(filtro: pd.Series, condicion: str = "pobre") -> float:
+        cumple = hogares["pobreza"] == 1 if condicion == "extrema" else hogares["pobre"]
+        return tasa(cumple[filtro], peso[filtro])
 
-    pob_ext = metas.get("extrema", 5.5)
-    cuadro_ext = metas.get("cuadro_extrema", "Cuadro 3.4")
-    pag_ext = metas.get("pagina_extrema", 72)
-    v.cifra("Pobreza extrema", tasa(hogares["pobreza"] == 1, peso), pob_ext,
-            cuadro=cuadro_ext, pagina=pag_ext)
-
-    pob_urb = metas.get("urbana", 24.8)
-    v.cifra("Pobreza urbana", tasa(hogares["pobre"][hogares["urbano"]], peso[hogares["urbano"]]), pob_urb,
-            cuadro=cuadro_pob, pagina=pag_pob)
-
-    pob_rur = metas.get("rural", 39.3)
-    v.cifra("Pobreza rural", tasa(hogares["pobre"][~hogares["urbano"]], peso[~hogares["urbano"]]), pob_rur,
-            cuadro=cuadro_pob, pagina=pag_pob)
-
-    cuadro_lima = metas.get("cuadro_lima", "Anexo Cuadro 3.1")
-    pag_lima = metas.get("pagina_lima", 220)
-    if "lima_metropolitana" in metas:
-        lima_callao = hogares["dominio"] == 8
-        v.cifra("Pobreza en Lima Metropolitana con Callao", tasa(hogares["pobre"][lima_callao], peso[lima_callao]),
-                metas["lima_metropolitana"], cuadro="Cuadro III.1", pagina=219, nota="dominio 8")
-
+    todos = pd.Series(True, index=hogares.index)
     es_1501 = hogares["ubigeo"].str.startswith("1501")
-    if "lima_metropolitana_provincia" in metas:
-        v.cifra("Pobreza en Lima Metropolitana (provincia 1501)", tasa(hogares["pobre"][es_1501], peso[es_1501]),
-                metas["lima_metropolitana_provincia"], cuadro=cuadro_lima, pagina=pag_lima)
+    v.cifra("Pobreza nacional (hogares, factor07 × mieperho)", pobreza_de(todos), metas["nacional"])
+    v.cifra("Pobreza nacional (personas, facpob07)", tasa(base["pobre"], base["facpob07"]), metas["nacional"],
+            tolerancia_facpob07(anio), "contraste con otro ponderador, no es el método oficial")
+    v.cifra("Pobreza extrema", pobreza_de(todos, "extrema"), metas["extrema"])
+    v.cifra("Pobreza urbana", pobreza_de(hogares["urbano"]), metas["urbana"])
+    v.cifra("Pobreza rural", pobreza_de(~hogares["urbano"]), metas["rural"])
+    v.cifra("Pobreza en Lima Metropolitana y Callao (dominio 8)", pobreza_de(hogares["dominio"] == 8),
+            metas["lima_metropolitana_callao"])
+    v.cifra("Pobreza en Lima Metropolitana (provincia 1501)", pobreza_de(es_1501), metas["lima_metropolitana"])
+    v.cifra("Pobreza en Lima provincias", pobreza_de((hogares["departamento"] == "15") & ~es_1501),
+            metas["lima_provincias"])
 
-    es_15_resto = (hogares["departamento"] == "15") & (~es_1501)
-    if "lima_provincias" in metas:
-        v.cifra("Pobreza en Lima provincias", tasa(hogares["pobre"][es_15_resto], peso[es_15_resto]),
-                metas["lima_provincias"], cuadro=cuadro_lima, pagina=pag_lima)
-
-    if anio == 2024 and REFERENCIA_INEI.is_file():
-        ref = pd.read_csv(REFERENCIA_INEI, dtype={"ccdd": str})
-        for fila in ref.itertuples():
-            if not fila.ccdd or pd.isna(fila.ccdd):
-                continue
-            if fila.ccdd in ("1501", "15_resto"):
-                continue  # ya evaluadas arriba
-            elif fila.ccdd == "15":
-                de_aqui = hogares["departamento"] == "15"
-                nombre_val = "Pobreza en LIMA (departamento completo, consigna)"
-            else:
-                de_aqui = hogares["departamento"] == fila.ccdd
-                nombre_val = f"Pobreza en {fila.ambito}"
-
+    if anio == 2024:
+        # Los departamentos del Cuadro III.1 (p. 220). El INEI publica Lima Metropolitana y Lima provincias, que se
+        # validan arriba, pero no una cifra del departamento 15 en conjunto: no hay contra qué validarlo.
+        tabla = leer_referencia_2024()
+        departamentos = tabla[tabla["ccdd"].fillna("").str.fullmatch(r"\d{2}")]
+        for fila in departamentos.itertuples():
+            nombre = f"Pobreza en {fila.ambito}"
+            de_aqui = hogares["departamento"] == fila.ccdd
             if de_aqui.any():
-                ic_inf = float(fila.ic_inf) if not pd.isna(fila.ic_inf) else None
-                ic_sup = float(fila.ic_sup) if not pd.isna(fila.ic_sup) else None
-                cuadro = str(fila.cuadro) if not pd.isna(fila.cuadro) else ""
-                pagina = str(int(float(fila.pagina))) if str(fila.pagina).replace(".", "", 1).isdigit() else str(fila.pagina)
-                nota = str(fila.nota) if not pd.isna(fila.nota) else ""
-                v.cifra(nombre_val, tasa(hogares["pobre"][de_aqui], peso[de_aqui]), float(fila.valor),
-                        ic_inf, ic_sup, cuadro, pagina, nota)
+                v.cifra(nombre, pobreza_de(de_aqui), meta_de_fila(fila))
             else:
-                v.registrar(nombre_val, False, "sin hogares en la base")
+                v.registrar(nombre, False, "sin hogares en la base")
+        v.igual("Departamentos con cifra publicada por el INEI en la referencia",
+                departamentos["ccdd"].nunique(), len(DEPARTAMENTOS) - 1, "los 25 menos Lima (15)")
+        v.nota("Lima, departamento 15: sin cifra publicada por el INEI para el departamento en conjunto. Se validan "
+               "por separado Lima Metropolitana (provincia 1501) y Lima provincias, como las publica el Cuadro III.1.")
 
-    v.igual("Departamentos con hogares", hogares["departamento"].nunique(), len(DEPARTAMENTOS), "consigna de 25 departamentos")
+    v.igual("Departamentos con hogares", hogares["departamento"].nunique(), len(DEPARTAMENTOS),
+            "consigna: 25 códigos territoriales")
     return v
 
 
@@ -264,9 +288,10 @@ def indicadores(base: pd.DataFrame, anio: int) -> pd.DataFrame:
     pobreza("pobreza_extrema", "Pobreza extrema", "Nacional", hogares, todos_h, "peso_hogar", PESO_HOGAR, "extrema")
     pobreza("pobreza_area_urbana", "Pobreza monetaria", "Urbana", hogares, hogares["urbano"], "peso_hogar", PESO_HOGAR)
     pobreza("pobreza_area_rural", "Pobreza monetaria", "Rural", hogares, ~hogares["urbano"], "peso_hogar", PESO_HOGAR)
-    pobreza("pobreza_lima_metropolitana", "Pobreza monetaria", "Lima Metropolitana", hogares,
+    # Tres ámbitos de Lima con nombres distintos: el dominio 8 incluye el Callao; la provincia 1501, no.
+    pobreza("pobreza_lima_metropolitana", "Pobreza monetaria", "Lima Metropolitana y Callao", hogares,
             hogares["dominio"] == 8, "peso_hogar", PESO_HOGAR)
-    pobreza("pobreza_lima_metropolitana_provincia", "Pobreza monetaria", "Lima Metropolitana (provincia)", hogares,
+    pobreza("pobreza_lima_metropolitana_provincia", "Pobreza monetaria", "Lima Metropolitana", hogares,
             hogares["ubigeo"].str.startswith("1501"), "peso_hogar", PESO_HOGAR)
     pobreza("pobreza_lima_provincias", "Pobreza monetaria", "Lima provincias", hogares,
             (hogares["departamento"] == "15") & (~hogares["ubigeo"].str.startswith("1501")), "peso_hogar", PESO_HOGAR)
@@ -335,7 +360,9 @@ def actualizar_indicadores_csv(nuevos_indicadores: pd.DataFrame) -> None:
             anios_nuevos = set(nuevos_indicadores["anio"])
             existente = existente[~existente["anio"].isin(anios_nuevos)]
             consolidado = pd.concat([existente, nuevos_indicadores], ignore_index=True)
-            consolidado = consolidado.sort_values(["anio", "id"]).reset_index(drop=True)
+            # Orden estable por año: dentro de cada año se conserva el orden en que se generan los indicadores,
+            # el mismo que da una corrida sin indicadores.csv previo.
+            consolidado = consolidado.sort_values("anio", kind="stable").reset_index(drop=True)
         else:
             consolidado = nuevos_indicadores
     else:
@@ -363,12 +390,22 @@ def main() -> None:
     ruta_validacion = SALIDAS / "validacion.txt"
 
     todas_tablas = []
-    lineas_validacion = []
+    lineas_validacion = [
+        f"Metas: {INFORME_INEI}.",
+        f"Tolerancia de {TOLERANCIA} puntos: réplica de una cifra que el INEI publica con un decimal; no es una prueba "
+        "estadística. La incertidumbre de muestreo la dan los IC al 95 % del INEI, publicados solo para 2024.",
+        f"Tolerancia de {TOLERANCIA_FACPOB07} puntos en la línea facpob07 de 2020 a 2023 y de {TOLERANCIA} en {ANIO}: "
+        "contraste con el factor de cada persona, que no es el ponderador del método oficial (factor07 × mieperho); "
+        "con ese ponderador, 2021 difiere en 0.16 puntos de la cifra publicada.",
+        "Los hogares, filas y residentes son conteos de los archivos del INEI, no cifras publicadas.",
+        "",
+    ]
     total_fallos = 0
 
     for anio in anios_a_procesar:
         base, tabla_ind, valid = procesar_un_anio(anio)
-        lineas_validacion.append(f"Validación de la ENAHO {anio} contra las cifras oficiales del INEI (Informe Técnico 2025)\n")
+        lineas_validacion.append(f"Validación de la ENAHO {anio} (código de encuesta {CODIGOS_INEI[anio]}) "
+                                 "contra las cifras publicadas por el INEI\n")
         lineas_validacion.extend(valid.lineas)
         lineas_validacion.append("")
         total_fallos += valid.fallos

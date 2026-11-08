@@ -79,7 +79,9 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--anio", type=int, default=2024, help="Año de la ENAHO a descargar (2020 a 2024)")
+    # Sin año, la skill activada sola pasa --anio vacío: const evita que eso falle.
+    parser.add_argument("--anio", nargs="?", type=int, const=2024, default=2024,
+                        help="Año de la ENAHO a descargar (2020 a 2024); sin valor, 2024")
     parser.add_argument("--todos", action="store_true", help="Descarga todos los años disponibles (2020 a 2024)")
     args = parser.parse_args()
 

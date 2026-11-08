@@ -95,3 +95,79 @@ def test_bcrp_caido_no_se_reemplaza_por_estimaciones(verificar, api):
     verificar.verificar_bcrp(reg, 2024)
     assert set(resultados(reg, "BCRP").values()) == {"NO VERIFICABLE"}
     assert all("HTML" in f["detalle"] and "no respondió" in f["explicacion"] for f in reg.filas)
+
+
+def test_departamentos_frente_al_inei_excluyen_lima_15(verificar):
+    # El INEI no publica una cifra para el departamento 15 en conjunto: se compara Lima Metropolitana y Lima
+    # provincias en su lugar, y la consigna de 25 departamentos se sigue exigiendo en indicadores.csv.
+    reg = verificar.Registro()
+    verificar.verificar_enaho(reg)
+    fila = next(f for f in reg.filas if "informe técnico del INEI" in f["verificacion"])
+    assert fila["resultado"] == "OK"
+    assert "25 departamentos en indicadores.csv" in fila["detalle"]
+    assert "24 departamentos" in fila["detalle"] and "Lima Metropolitana" in fila["detalle"]
+    assert "Lima (15) sin cifra publicada por el INEI" in fila["detalle"]
+
+
+def test_departamentos_frente_al_inei_falla_si_falta_uno_de_los_25(verificar, tmp_path, monkeypatch):
+    for archivo in ("indicadores.csv", "validacion.txt", "mapa_vs_referencia.csv"):
+        shutil.copy(RAIZ / "salidas" / archivo, tmp_path / archivo)
+    indicadores = (tmp_path / "indicadores.csv").read_text(encoding="utf-8").splitlines()
+    sin_15 = [l for l in indicadores if not l.startswith("2024,pobreza_dep_15,")]
+    (tmp_path / "indicadores.csv").write_text("\n".join(sin_15) + "\n", encoding="utf-8")
+    monkeypatch.setattr(verificar, "SALIDAS", tmp_path)
+    reg = verificar.Registro()
+    verificar.verificar_enaho(reg)
+    fila = next(f for f in reg.filas if "informe técnico del INEI" in f["verificacion"])
+    assert fila["resultado"] == "FALLA" and "24 departamentos en indicadores.csv" in fila["detalle"]
+
+
+def morosidad_falsa(bcrp, sbs):
+    """Respuestas simuladas: la serie mensual del BCRP y un boletín B-2401 por diciembre."""
+    datos = [{"periodo": f"{a}-{m:02d}", "valor": bcrp.get(a, 9.9) if m == 12 else 9.9}
+             for a in range(2020, 2025) for m in range(1, 13)]
+    boletines = {a: {"codigo": "B-2401", "periodo": f"{a}-12", "indicadores": [
+        {"indicador": "Créditos Atrasados (criterio SBS) / Créditos Directos", "total": {"valor": v}}]}
+        for a, v in sbs.items()}
+
+    async def consultar(anios):
+        return {"nombre": "Cartera atrasada neta / Colocaciones netas (%) - Empresas Bancarias", "datos": datos}, \
+            {a: boletines[a] for a in anios if a in boletines}
+    return consultar
+
+
+def test_morosidad_compara_los_cinco_diciembres(verificar, monkeypatch):
+    bcrp = {2020: 3.80, 2021: 3.70, 2022: 3.90, 2023: 4.00, 2024: 3.80}
+    sbs = {2020: 3.80, 2021: 3.73, 2022: 3.85, 2023: 3.67, 2024: 3.75}
+    monkeypatch.setattr(verificar, "_consultar_morosidad", morosidad_falsa(bcrp, sbs))
+    reg = verificar.Registro()
+    verificar.verificar_morosidad(reg)
+    [fila] = [f for f in reg.filas if f["fuente"] == "BCRP / SBS"]
+    assert fila["resultado"] == "DIFERENCIA"
+    assert "5 diciembres" in fila["detalle"]
+    assert all(f"{a}-12" in fila["detalle"] for a in range(2020, 2025))
+    assert "diferencia absoluta máxima 0.33 puntos en 2023-12" in fila["detalle"]
+    assert "9.9" not in fila["detalle"]  # solo diciembres
+    assert "Créditos Atrasados (criterio SBS) / Créditos Directos" in fila["explicacion"]
+    assert "Cartera atrasada neta / Colocaciones netas" in fila["explicacion"]
+
+
+def test_morosidad_declara_los_diciembres_que_faltan(verificar, monkeypatch):
+    bcrp = {a: 3.8 for a in range(2020, 2025)}
+    sbs = {2020: 3.8, 2022: 3.8, 2023: 3.8, 2024: 3.8}
+    monkeypatch.setattr(verificar, "_consultar_morosidad", morosidad_falsa(bcrp, sbs))
+    reg = verificar.Registro()
+    verificar.verificar_morosidad(reg)
+    [fila] = [f for f in reg.filas if f["fuente"] == "BCRP / SBS"]
+    assert fila["resultado"] == "DIFERENCIA"
+    assert "4 diciembres" in fila["detalle"] and "sin dato de la SBS: 2021-12" in fila["detalle"]
+
+
+def test_morosidad_sin_respuesta_no_se_estima(verificar, monkeypatch):
+    async def caida(anios):
+        raise RuntimeError("El BCRP respondió HTML")
+    monkeypatch.setattr(verificar, "_consultar_morosidad", caida)
+    reg = verificar.Registro()
+    verificar.verificar_morosidad(reg)
+    [fila] = [f for f in reg.filas if f["fuente"] == "BCRP / SBS"]
+    assert fila["resultado"] == "NO VERIFICABLE" and "HTML" in fila["detalle"]

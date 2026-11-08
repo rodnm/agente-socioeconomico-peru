@@ -6,7 +6,6 @@ escribe a mano ni se recalcula aquí. Las salidas opcionales que aún no existen
 import json
 from pathlib import Path
 
-import httpx
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -18,20 +17,24 @@ CONSISTENCIA = RAIZ / "salidas" / "consistencia.csv"
 BCRP = RAIZ / "salidas" / "bcrp"
 RESULTADOS = RAIZ / "evaluacion" / "resultados.csv"
 ROBUSTEZ = RAIZ / "evaluacion" / "robustez_resultados.csv"
-# datos/ no se versiona: en la nube los límites se bajan de la copia del curso
-GEOJSON_OFICIAL = RAIZ / "referencias" / "limites_departamentales_ign.geojson"
-GEOJSON_LEGACY = RAIZ / "datos" / "peru_departamental_simple.geojson"
-GEOJSON = GEOJSON_OFICIAL if GEOJSON_OFICIAL.is_file() else GEOJSON_LEGACY
-URL_GEOJSON = ("https://raw.githubusercontent.com/d2cml-ai/Data-Science-Python/main/sessions/06-geoespacial/lab/Data/"
-               "peru_departamental_simple.geojson")
-DEPARTAMENTOS = 25
+# Límites oficiales del IGN (COD-AB, OCHA HDX), versionados; los genera scripts/preparar_limites.py. Nunca se descargan.
+GEOJSON_AMBITOS = RAIZ / "referencias" / "limites_ambitos_ign.geojson"
+PREPARAR_LIMITES = "uv run scripts/preparar_limites.py"
+
+# El análisis territorial usa los 26 ámbitos del Cuadro III.1 del INEI: Lima (15) se desagrega en Lima Metropolitana
+# (provincia 1501) y Lima provincias, cada una con el código de la propiedad `codigo` de la capa de ámbitos. Se eligen
+# por id, nunca por la etiqueta: pobreza_lima_metropolitana (dominio 8, con el Callao) no es un ámbito.
+AMBITOS = 26
+LIMA_DESAGREGADA = {"pobreza_lima_metropolitana_provincia": "1501", "pobreza_lima_provincias": "15_resto"}
+LIMA_DEPARTAMENTO = "pobreza_dep_15"
 
 COLUMNAS_EVALUACION = ["id", "tipo", "modo", "pregunta", "verdad", "valor", "unidad", "tolerancia", "resultado",
                        "segundos", "turnos", "herramientas", "fuente", "error"]
 COLUMNAS_ROBUSTEZ = ["id", "modo", "pedido", "conducta_esperada", "conducta_observada", "resultado", "segundos"]
 COLUMNAS_CONSISTENCIA = ["fuente", "verificacion", "resultado", "detalle", "explicacion"]
-COLUMNAS_COMPARACION = ["ccdd", "departamento", "pobreza_pct", "referencia_sesion16", "diferencia",
+COLUMNAS_COMPARACION = ["ccdd", "departamento", "pobreza_pct", "referencia_inei", "diferencia",
                         "dentro_de_tolerancia"]
+SIN_REFERENCIA, NO_APLICA = "sin cifra publicada por el INEI", "no aplica"
 COLUMNAS_BCRP = ["archivo", "periodo", "fecha", "valor", "codigo", "nombre", "fuente"]
 
 # Las configuraciones de evaluacion/evaluar.py, en el orden en que se comparan
@@ -71,6 +74,8 @@ def huella(ruta: Path):
 
 
 def cargar_indicadores(ruta: Path = INDICADORES, anio: int | None = 2024) -> pd.DataFrame:
+    """Los indicadores del año dado (2024 por defecto). Una salida anterior sin columna `anio` es de un solo año y se
+    devuelve completa."""
     df = _leer(ruta, ["anio", "id", "indicador", "grupo", "valor", "unidad", "ponderador", "n_muestral", "fuente"],
                dtype={"id": str})
     if "anio" in df.columns and anio is not None:
@@ -94,17 +99,49 @@ def cargar_robustez(ruta: Path = ROBUSTEZ) -> pd.DataFrame:
     return _leer(ruta, COLUMNAS_ROBUSTEZ, dtype={"id": str, "modo": str})
 
 
-def cargar_geojson(ruta: Path = GEOJSON, url: str = URL_GEOJSON) -> tuple[dict | None, str | None]:
-    """Los límites departamentales del archivo local o, si falta, de la copia del curso. Nunca lanza error: si no
-    se pueden bajar, devuelve el aviso para mostrar y el resto del tablero sigue."""
-    if ruta.exists():
-        return json.loads(ruta.read_text(encoding="utf-8")), None
+def _relativa(ruta: Path) -> str:
     try:
-        respuesta = httpx.get(url, timeout=20, follow_redirects=True)
-        respuesta.raise_for_status()
-        return respuesta.json(), None
-    except (httpx.HTTPError, ValueError) as error:
-        return None, f"No se pudieron obtener los límites departamentales ({error}). El mapa se omite."
+        return ruta.relative_to(RAIZ).as_posix()
+    except ValueError:
+        return ruta.as_posix()
+
+
+def cargar_geojson(ruta: Path = GEOJSON_AMBITOS) -> tuple[dict | None, str | None]:
+    """Los límites del IGN versionados en referencias/. Nunca descarga nada ni lanza error: si el archivo falta o no
+    se puede leer, devuelve el aviso para mostrar y el resto del tablero sigue."""
+    try:
+        return json.loads(ruta.read_text(encoding="utf-8")), None
+    except FileNotFoundError:
+        return None, (f"Falta `{_relativa(ruta)}`, con los límites oficiales del IGN. Se genera con "
+                      f"`{PREPARAR_LIMITES}`. El mapa se omite.")
+    except (OSError, ValueError) as error:
+        return None, (f"No se pudo leer `{_relativa(ruta)}` ({error}). Se vuelve a generar con "
+                      f"`{PREPARAR_LIMITES}`. El mapa se omite.")
+
+
+def tabla_comparacion(comparacion: pd.DataFrame) -> pd.DataFrame:
+    """El contraste del mapa con el Cuadro III.1 del INEI, listo para mostrar: un departamento sin cifra publicada
+    (Lima, 15) lo dice en texto en lugar de quedar vacío, y su diferencia y tolerancia no aplican."""
+    referencia = pd.to_numeric(comparacion["referencia_inei"], errors="coerce")
+    diferencia = pd.to_numeric(comparacion["diferencia"], errors="coerce")
+    dentro = comparacion["dentro_de_tolerancia"].astype(str).str.strip().str.lower().eq("true")
+    con_cifra = referencia.notna()
+    return pd.DataFrame({
+        "ccdd": comparacion["ccdd"], "departamento": comparacion["departamento"],
+        "pobreza_pct": pd.to_numeric(comparacion["pobreza_pct"], errors="coerce"),
+        "referencia_inei": [f"{r:.1f}" if c else SIN_REFERENCIA for r, c in zip(referencia, con_cifra)],
+        "diferencia": [f"{d:.2f}" if c and pd.notna(d) else NO_APLICA for d, c in zip(diferencia, con_cifra)],
+        "dentro_de_tolerancia": [("Sí" if d else "No") if c else NO_APLICA for d, c in zip(dentro, con_cifra)]})
+
+
+def resumen_comparacion(comparacion: pd.DataFrame) -> dict:
+    """Cuántos departamentos tienen cifra del INEI, cuántos de ellos caen dentro de la tolerancia y cuáles no la
+    tienen, como pares (código, nombre)."""
+    con_cifra = pd.to_numeric(comparacion["referencia_inei"], errors="coerce").notna()
+    dentro = comparacion["dentro_de_tolerancia"].astype(str).str.strip().str.lower().eq("true")
+    sin_cifra = comparacion[~con_cifra]
+    return {"con_referencia": int(con_cifra.sum()), "dentro": int((dentro & con_cifra).sum()),
+            "sin_referencia": list(zip(sin_cifra["ccdd"].astype(str), sin_cifra["departamento"].astype(str)))}
 
 
 # ---------- ENAHO ----------
@@ -115,11 +152,20 @@ def filas(ind: pd.DataFrame, prefijo: str) -> pd.DataFrame:
                                                          nombre=lambda t: t["grupo"])
 
 
-def tabla_departamentos(ind: pd.DataFrame) -> pd.DataFrame:
-    """Los 25 departamentos con su código ubigeo de dos dígitos, sacado del id: Lima (15) y Callao (07) aparte."""
-    dep = filas(ind, "pobreza_dep_")
-    return pd.DataFrame({"ccdd": dep["id"].str.removeprefix("pobreza_dep_"), "nombre": dep["grupo"],
-                         "pobreza": dep["valor"]}).sort_values("ccdd").reset_index(drop=True)
+def tabla_ambitos(ind: pd.DataFrame) -> pd.DataFrame:
+    """Los 26 ámbitos del análisis territorial: 24 departamentos, el Callao (07), Lima Metropolitana (1501) y Lima
+    provincias (15_resto), con el código de la capa de ámbitos del IGN. El departamento 15 en conjunto queda fuera.
+    Si la salida no trae a Lima desagregada (anterior a ese cambio), lo dice en lugar de mostrar 24 ámbitos."""
+    elegidas = ind[(ind["id"].str.startswith("pobreza_dep_") & (ind["id"] != LIMA_DEPARTAMENTO)) |
+                   ind["id"].isin(list(LIMA_DESAGREGADA))]
+    codigo = elegidas["id"].map(LIMA_DESAGREGADA).fillna(elegidas["id"].str.removeprefix("pobreza_dep_"))
+    tabla = pd.DataFrame({"codigo": codigo, "nombre": elegidas["grupo"], "pobreza": elegidas["valor"].astype(float),
+                          "ponderador": elegidas["ponderador"]}).sort_values("codigo").reset_index(drop=True)
+    if len(tabla) != AMBITOS or tabla["codigo"].duplicated().any():
+        raise ValueError(f"Se esperaban {AMBITOS} ámbitos, con Lima desagregada en Lima Metropolitana y Lima "
+                         f"provincias; `salidas/indicadores.csv` trae {len(tabla)}. Se regenera con la skill "
+                         "limpiando-enaho.")
+    return tabla
 
 
 def nacional(ind: pd.DataFrame, ponderador: str) -> float | None:
@@ -153,26 +199,27 @@ def pie_enaho(tabla: pd.DataFrame) -> str:
     return f"Fuente: INEI, ENAHO 2024. Ponderado con {ponderadores}. Datos: salidas/indicadores.csv (limpiando-enaho)."
 
 
-def unir_geometria(geo: dict, departamentos: pd.DataFrame) -> pd.DataFrame:
-    """Une por código (FIRST_IDDP del GeoJSON con el sufijo de pobreza_dep_XX), nunca por nombre, y exige los 25."""
-    limites = pd.DataFrame({"ccdd": [str(f["properties"]["FIRST_IDDP"]).zfill(2) for f in geo["features"]],
-                            "nombre_mapa": [f["properties"].get("NOMBDEP", "") for f in geo["features"]]})
-    unida = limites.merge(departamentos, on="ccdd", how="outer", indicator=True)
-    sueltos = sorted(unida.loc[unida["_merge"] != "both", "ccdd"])
-    if sueltos or len(unida) != DEPARTAMENTOS or unida["ccdd"].duplicated().any():
-        raise ValueError(f"Se esperaban {DEPARTAMENTOS} departamentos unidos por código; se unieron "
+def unir_geometria(geo: dict, ambitos: pd.DataFrame) -> pd.DataFrame:
+    """Une por código (propiedad `codigo` de la capa de ámbitos del IGN con el de tabla_ambitos), nunca por nombre, y
+    exige los 26."""
+    limites = pd.DataFrame({"codigo": [str(f["properties"].get("codigo", "")).zfill(2) for f in geo["features"]],
+                            "nombre_mapa": [f["properties"].get("nombre", "") for f in geo["features"]]})
+    unida = limites.merge(ambitos, on="codigo", how="outer", indicator=True)
+    sueltos = sorted(unida.loc[unida["_merge"] != "both", "codigo"])
+    if sueltos or len(unida) != AMBITOS or unida["codigo"].duplicated().any():
+        raise ValueError(f"Se esperaban {AMBITOS} ámbitos unidos por código; se unieron "
                          f"{(unida['_merge'] == 'both').sum()}. Códigos sin pareja: {sueltos}.")
-    return unida.drop(columns="_merge").sort_values("ccdd").reset_index(drop=True)
+    return unida.drop(columns="_merge").sort_values("codigo").reset_index(drop=True)
 
 
 def figura_mapa(unida: pd.DataFrame, geo: dict) -> go.Figure:
-    figura = px.choropleth(unida, geojson=geo, locations="ccdd", featureidkey="properties.FIRST_IDDP", color="pobreza",
+    figura = px.choropleth(unida, geojson=geo, locations="codigo", featureidkey="properties.codigo", color="pobreza",
                            color_continuous_scale=AZULES, range_color=(0, unida["pobreza"].max()),
-                           hover_name="nombre", hover_data={"ccdd": True, "pobreza": ":.1f"},
-                           labels={"pobreza": "% de personas", "ccdd": "Código"})
+                           hover_name="nombre", hover_data={"codigo": True, "pobreza": ":.1f"},
+                           labels={"pobreza": "% de personas", "codigo": "Código"})
     figura.update_geos(fitbounds="locations", visible=False)
     figura.update_traces(marker_line_color="#fcfcfb", marker_line_width=0.8)
-    figura.update_layout(title="Pobreza monetaria por departamento, Perú 2024", height=620,
+    figura.update_layout(title="Pobreza monetaria por ámbito territorial, Perú 2024", height=620,
                          margin={"l": 0, "r": 0, "t": 48, "b": 0},
                          coloraxis_colorbar={"title": {"text": "% de personas"}, "ticksuffix": " %"})
     return figura

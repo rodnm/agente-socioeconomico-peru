@@ -4,8 +4,8 @@
 
 Es un cálculo independiente: pide los datos crudos a la API pública del BCRP con httpx y los resume con pandas, sin
 importar mcp/server.py. Así, si el servidor tuviera un error de fechas o de periodos, la evaluación lo detectaría en
-lugar de heredarlo. Las verdades de la ENAHO vienen de cifras publicadas por el INEI y de la referencia de la
-sesión 16; están en preguntas.csv con su fuente.
+lugar de heredarlo. Las verdades de la ENAHO son cifras publicadas por el INEI en su informe técnico de 2025 y
+están en preguntas.csv; evaluacion/procedencia_de_las_verdades.md da el cuadro y la página de cada una.
 """
 import json
 import sys

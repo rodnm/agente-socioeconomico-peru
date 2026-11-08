@@ -338,6 +338,10 @@ def graficar_serie(codigo: str, desde: str, hasta: str, titulo: str | None = Non
     archivo = FIGURAS / f"bcrp_{codigo}_{desde}_{hasta}.png"
     fig.savefig(archivo, dpi=200, bbox_inches="tight")
     plt.close(fig)
+    # Los datos graficados quedan junto a las salidas: el dashboard los lee sin volver a consultar al BCRP
+    (RAIZ / "salidas" / "bcrp").mkdir(parents=True, exist_ok=True)
+    s.rename_axis("periodo").rename("valor").to_frame().assign(codigo=codigo, nombre=ficha["nombre"], fuente=url).to_csv(
+        RAIZ / "salidas" / "bcrp" / f"{codigo}_{desde}_{hasta}.csv", encoding="utf-8")
     r = {"archivo": archivo.relative_to(RAIZ).as_posix(), "codigo": codigo, "nombre": ficha["nombre"],
          "periodo": f"{s.index[0]} a {s.index[-1]}", "n": len(s), "primero": _punto(s, s.index[0]),
          "ultimo": _punto(s, s.index[-1]), "fuente": url}

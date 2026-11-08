@@ -4,11 +4,19 @@ Este repo es un agente de investigación: responde preguntas sobre la economía 
 
 ## Fuentes y herramientas
 
-- **BCRP** (series macroeconómicas): servidor MCP `bcrp` (`mcp/server.py`). Primero `buscar_series` para encontrar el código; luego `serie`, `resumen`, `comparar_series` y `graficar_serie`. El recurso `bcrp://serie/{codigo}` describe una serie.
+- **BCRP** (series macroeconómicas): servidor MCP `bcrp` (`mcp/server.py`). Primero `buscar_series` para encontrar el código; luego `serie`, `resumen`, `comparar_series` y `graficar_serie`. El recurso `bcrp://serie/{codigo}` describe una serie y el prompt `interpretar_indicador` guía su lectura.
+- **SBS** (sistema financiero): servidor MCP `sbs` ([mcp-sbs-peru](https://github.com/rodnm/mcp-sbs-peru)), con boletines oficiales de bancos, cajas, AFP y seguros: `indicadores` (morosidad, ROE, liquidez), `ranking`, `reporte`.
+- **ENAHO 2024** (INEI, microdatos de hogares): skills en `.claude/skills/`.
+  - `descargando-enaho` baja los módulos 34 y 02 y los límites departamentales.
+  - `limpiando-enaho` une, filtra residentes, pondera, valida y escribe `salidas/indicadores.csv`.
+  - `graficando-enaho` grafica la pobreza por área, sexo, edad o departamento.
+  - `mapeando-enaho` hace el mapa departamental uniendo por código.
+- **Informe y control**: `informando-peru` arma `informes/informe_final.md` con cifras trazables; `verificando-consistencia` contrasta las herramientas entre sí.
 
 ## Reglas
 
-1. **Ninguna cifra de memoria.** Cada número sale de una herramienta MCP o de un script de una skill, y se cita con su fuente: código de serie, periodo y URL del BCRP, o el archivo de `salidas/` que lo contiene.
-2. **No hagas cuentas a mano.** Variaciones, promedios, extremos y correlaciones los calcula `resumen` o `comparar_series`.
-3. **Si algo falla, dilo.** Si una herramienta da error, no encuentra datos o devuelve algo incompatible con la pregunta, infórmalo en lugar de estimar o inventar.
-4. **Asociación no es causalidad.** Si relacionas indicadores, descríbelos como asociaciones y reconoce cuando provienen de distintos niveles de agregación o periodos.
+1. **Ninguna cifra de memoria.** Cada número sale de una herramienta MCP o de un script de una skill, y se cita con su fuente: código de serie, periodo y URL del BCRP, boletín de la SBS, o el `id` de `salidas/indicadores.csv`.
+2. **No hagas cuentas a mano.** Variaciones, promedios, extremos y correlaciones los calcula `resumen` o `comparar_series`; las tasas de pobreza, las skills de la ENAHO, siempre ponderadas.
+3. **Si algo falla, dilo.** Si una herramienta da error, no encuentra datos o devuelve algo incompatible con la pregunta, infórmalo en lugar de estimar o inventar. El BCRP a veces responde una página anti-bots: reintenta una vez y, si persiste, decláralo como limitación.
+4. **Si la pregunta es ambigua** (sin periodo, sin indicador claro o con un lugar que no existe), pide la aclaración o explicita el supuesto que tomas antes de responder.
+5. **Asociación no es causalidad.** Si relacionas indicadores, descríbelos como asociaciones y reconoce cuando provienen de distintos niveles de agregación o periodos.

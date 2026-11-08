@@ -82,8 +82,8 @@ Corridas de cada modo que usaron al menos una herramienta de cada familia.
 
 | modo | cumple | no cumple |
 |---|---|---|
-| A | 7 | 1 |
-| B | 6 | 2 |
+| A | 11 | 1 |
+| B | 10 | 2 |
 
 | pedido | A | B |
 |---|---|---|
@@ -95,3 +95,7 @@ Corridas de cada modo que usaron al menos una herramienta de cada familia.
 | r6 | pide_aclaracion | pide_aclaracion |
 | r7 | responde | responde |
 | r8 | responde | responde |
+| r9 | responde | responde |
+| r10 | declara_sin_datos | declara_sin_datos |
+| r11 | responde | responde |
+| r12 | responde | responde |

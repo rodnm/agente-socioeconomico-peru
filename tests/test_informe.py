@@ -34,6 +34,14 @@ def test_resuelve_indicadores_y_agrega_trazabilidad(tmp_path):
     assert "factor07 × mieperho" in texto and "«0.1 puntos»" in texto
 
 
+def test_referencias_en_formato_apa7(tmp_path):
+    r, salida = armar(tmp_path, "La pobreza fue {{enaho.pobreza_nacional}} %.\n")
+    assert r.returncode == 0, r.stderr
+    texto = salida.read_text(encoding="utf-8")
+    assert "Instituto Nacional de Estadística e Informática. (2025" in texto
+    assert "Perú: Evolución de la Pobreza Monetaria 2015-2024" in texto
+
+
 def test_rechaza_cifras_escritas_a_mano(tmp_path):
     r, salida = armar(tmp_path, "La pobreza fue 27.6 % y hubo 108,664 residentes en 2024.\n")
     assert r.returncode != 0

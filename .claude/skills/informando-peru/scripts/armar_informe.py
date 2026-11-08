@@ -34,11 +34,25 @@ CIFRA_SUELTA = re.compile(
     r"|(?<![\w/.-])\d+[.,]\d+(?![\w/-])"         # decimales
     r"|(?<![\w/.-])\d{1,3}(?:,\d{3})+(?![\w/-])"  # miles con separador
     r"|(?<![\w/.,-])(?!(?:19|20)\d\d\b)\d{3,}(?![\w/.,-])")  # 3 o más dígitos que no son un año
-FUENTES_ENAHO = [
-    "INEI, ENAHO 2024, módulo 34 (sumaria): https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip",
-    "INEI, ENAHO 2024, módulo 02 (miembros del hogar): "
-    "https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip",
-]
+REFERENCIAS_APA7 = {
+    "bcrp": (
+        "Banco Central de Reserva del Perú. (2025). *Estadísticas económicas: Series de inflación y actividad económica* "
+        "[Servicio web de datos / API]. https://estadisticas.bcrp.gob.pe/estadisticas/series/api/"
+    ),
+    "enaho": (
+        "Instituto Nacional de Estadística e Informática. (2025a). *Encuesta Nacional de Hogares sobre Condiciones de Vida "
+        "y Pobreza 2024* [Microdatos, módulos 34 y 02]. https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/"
+    ),
+    "inei_pobreza": (
+        "Instituto Nacional de Estadística e Informática. (2025b). *Perú: Evolución de la Pobreza Monetaria 2015-2024. "
+        "Informe técnico*. Lima: INEI. "
+        "https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf"
+    ),
+    "sbs": (
+        "Superintendencia de Banca, Seguros y AFP. (2024). *Boletín Estadístico de Banca Múltiple y Cajas Municipales "
+        "(Diciembre 2024)* [Boletines B-2401, C-1301 y B-2332]. https://intranet2.sbs.gob.pe/estadistica/financiera/"
+    ),
+}
 
 
 def formatear(valor, decimales):
@@ -187,11 +201,33 @@ def anexos(traza, faltantes, constantes, borrador_rel):
     if faltantes:
         lineas += ["", "### Datos no disponibles", "", "Estas cifras no se pudieron obtener y no se estimaron:", ""]
         lineas += [f"- `{e}`: {m}" for e, m in faltantes]
-    urls = sorted({u for _, _, f in traza for u in re.findall(r"https?://[^\s,;)]+", f)})
-    lineas += ["", "## Referencias", ""] + [f"- {f}" for f in FUENTES_ENAHO]
-    lineas += [f"- {u}" for u in urls]
-    lineas += ["- Procesamiento: `.claude/skills/limpiando-enaho/scripts/limpiar.py` → `salidas/indicadores.csv`, "
-               "`salidas/validacion.txt`.", "- Servidor MCP del BCRP: `mcp/server.py`; otros servidores en `.mcp.json`."]
+    # Construir referencias bibliográficas en formato APA 7ma edición
+    usadas = set()
+    for _, origen, fuente in traza:
+        origen_l = origen.lower()
+        fuente_l = fuente.lower()
+        if "enaho" in origen_l or "indicadores.csv" in fuente_l:
+            usadas.add("enaho")
+            usadas.add("inei_pobreza")
+        if "bcrp" in origen_l or "bcrp" in fuente_l:
+            usadas.add("bcrp")
+        if "sbs" in origen_l or "sbs" in fuente_l:
+            usadas.add("sbs")
+
+    citas_apa = [REFERENCIAS_APA7[k] for k in sorted(usadas) if k in REFERENCIAS_APA7]
+    if not citas_apa:
+        citas_apa = [REFERENCIAS_APA7["enaho"], REFERENCIAS_APA7["inei_pobreza"]]
+
+    lineas += ["", "## Referencias", "", "### Fuentes oficiales consultadas (norma APA 7ma edición)", ""]
+    lineas += [f"- {cita}" for cita in citas_apa]
+    lineas += [
+        "",
+        "### Trazabilidad y procesamiento de código",
+        "",
+        "- Procesamiento de microdatos: `.claude/skills/limpiando-enaho/scripts/limpiar.py` → `salidas/indicadores.csv`, "
+        "`salidas/validacion.txt`.",
+        "- Servidor MCP del BCRP: `mcp/server.py`; servidores SBS y Fetch en `.mcp.json`.",
+    ]
     return "\n".join(lineas) + "\n"
 
 

@@ -3,6 +3,9 @@
     uv run pytest tests/test_exportar.py
 """
 import importlib.util
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -67,3 +70,47 @@ def test_lo_que_genera_claude_code_no_figura_como_pedido(exportar):
     md = exportar.a_markdown(eventos, "Sesión")
     assert md.count(". Pedido") == 1 and "## 1. Pedido · 2026-11-02 23:10:31 UTC" in md
     assert "Resumen automático" in md and "Usage limit" not in md
+
+
+def test_el_texto_pegado_cuenta_como_pedido(exportar):
+    eventos = [{"type": "user", "timestamp": "2026-11-05T05:00:00Z", "message": {"content": (
+        '\n\n<pasted_content id="ab12">\nPropuesta de preguntas.\n</pasted_content id="ab12">')}}]
+    md = exportar.a_markdown(eventos, "Sesión")
+    assert "## 1. Pedido · 2026-11-05 05:00:00 UTC" in md and "*Texto pegado:*\n\nPropuesta de preguntas." in md
+    assert "pasted_content" not in md and "ab12" not in md
+
+
+def test_un_correo_cortado_por_el_limite_igual_se_oculta(exportar):
+    relleno = "x" * (exportar.LIMITE_RESULTADO - 10)
+    eventos = [{"type": "user", "message": {"content": [
+        {"type": "tool_result", "content": f"{relleno} autora@ejemplo.com y más texto"}]}}]
+    md = exportar.a_markdown(eventos, "Sesión")
+    assert "autora" not in md and "ejemplo" not in md  # el reemplazo puede quedar cortado; el correo no asoma
+
+
+def test_oculta_tambien_los_textos_indicados(exportar):
+    eventos = [{"type": "user", "message": {"content": "Busca IlusionX en los archivos."}},
+               uso("Bash", command="grep -n ilusionx evidencias_ia/")]
+    md = exportar.a_markdown(eventos, "Sesión", extra=("ilusionx",))
+    assert "ilusionx" not in md.lower() and md.count("[OCULTO]") == 3  # pedido, línea de tiempo y argumentos
+
+
+def test_un_texto_vacio_para_ocultar_no_cambia_nada(exportar):
+    assert exportar.a_markdown(EVENTOS, "Corrida", extra=("",)) == exportar.a_markdown(EVENTOS, "Corrida")
+
+
+def test_la_opcion_ocultar_se_puede_repetir(tmp_path):
+    origen, destino = tmp_path / "sesion.jsonl", tmp_path / "sesion.md"
+    origen.write_text(json.dumps({"type": "user", "message": {"content": "Ana Pérez y apz99 revisaron."}}) + "\n",
+                      encoding="utf-8")
+    subprocess.run([sys.executable, str(SCRIPT), str(origen), str(destino), "--ocultar", "ana pérez",
+                    "--ocultar", "APZ99"], check=True, capture_output=True)
+    md = destino.read_text(encoding="utf-8")
+    assert "Ana" not in md and "apz99" not in md and md.count("[OCULTO]") == 2
+
+
+def test_los_recordatorios_del_sistema_siguen_fuera(exportar):
+    eventos = [{"type": "user", "message": {"content": "<system-reminder>Contexto interno.</system-reminder>"}},
+               {"type": "user", "message": {"content": "continua"}}]
+    md = exportar.a_markdown(eventos, "Sesión")
+    assert md.count(". Pedido") == 1 and "Contexto interno" not in md

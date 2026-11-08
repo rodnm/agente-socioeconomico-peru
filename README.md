@@ -17,6 +17,12 @@ Tarea 4 del curso Python Intermedio ([enunciado](https://github.com/d2cml-ai/Dat
 
 Construir un agente que no conteste de memoria. Ante una pregunta en lenguaje natural, el agente busca la serie o el indicador correcto, lo consulta en la fuente oficial, calcula con código y no a mano, y entrega gráficos, un mapa y un informe con la procedencia de cada número. Después, una evaluación mide si esas herramientas mejoran las respuestas frente a Claude Code sin ellas.
 
+El proyecto separa dos tipos de preguntas:
+- **Preguntas de investigación.** Muestran qué se puede aprender del Perú con estas fuentes. El informe responde la de arriba, y el agente puede abordar otras del mismo tipo:
+  - qué departamentos superan la pobreza nacional y qué tan grande es la brecha urbano-rural;
+  - cómo se movieron juntas la inflación y el tipo de cambio entre 2020 y 2024.
+- **Preguntas de evaluación.** Miden cuánto mejoran las respuestas al sumar los MCP, las skills y la verificación automática. Por eso cada una tiene una respuesta verificable fijada antes de correr (sección 9). Se complementan con pedidos ambiguos, imposibles o con premisas dudosas, donde lo correcto es pedir una aclaración, explicitar un supuesto o decir que no hay datos.
+
 ## 2. Arquitectura
 
 ```mermaid
@@ -70,7 +76,7 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 |---|---|
 | **`limpiando-enaho`** | Lee los módulos 34 (sumaria) y 02 (miembros) con las llaves como texto, filtra a los residentes habituales (`((p204==1)&(p205==2))\|((p204==2)&(p206==1))`), une con `merge(..., validate="m:1")` y define `urbano = estrato <= 5` y `pobre = pobreza <= 2`. Pondera por hogar (`factor07 × mieperho`) para las cifras nacionales, por área y por departamento, y por persona (`facpob07`) para sexo y edad. Escribe `salidas/validacion.txt` y se detiene si una validación esencial falla, sin dejar la base. |
 | **`graficando-enaho`** | Grafica la pobreza por área, sexo, edad o departamento con títulos que dicen el hallazgo, unidad, periodo y fuente. Si falta la base procesada, primero corre `limpiando-enaho`. |
-| **`mapeando-enaho`** | Hace el mapa departamental uniendo `ubigeo[:2]` con `FIRST_IDDP`, con 25 unidades (Lima y Callao separados) y una escala que empieza en 0. Compara cada departamento con la referencia de la sesión 16 en `salidas/mapa_vs_referencia.csv`. |
+| **`mapeando-enaho`** | Hace el mapa departamental uniendo `ubigeo[:2]` con `FIRST_IDDP`, con 25 unidades (Lima y Callao separados) y una escala que empieza en 0. Compara cada departamento con el informe técnico oficial del INEI en `salidas/mapa_vs_referencia.csv`. |
 | `descargando-enaho` | Baja los zip del INEI y los límites departamentales a `datos/`. |
 | ★ `informando-peru` | Arma el informe con marcadores, tabla de trazabilidad y referencias (ver la sección 2). |
 | ★ `verificando-consistencia` | Contrasta las herramientas entre sí y escribe `salidas/consistencia.md` con OK, DIFERENCIA, FALLA o NO VERIFICABLE. Compara la pobreza con dos ponderadores, el mapa con los indicadores, la inflación a 12 meses recalculada desde el índice del IPC con la publicada, `resumen` con `serie` y cada cifra del informe con su fuente. |
@@ -81,12 +87,20 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 |---|---|---|
 | ENAHO 2024, módulo 34 (sumaria) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip> | `descargando-enaho` |
 | ENAHO 2024, módulo 02 (miembros del hogar) | <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip> | `descargando-enaho` |
-| Límites departamentales | [`peru_departamental_simple.geojson`](https://github.com/d2cml-ai/Data-Science-Python/tree/main/sessions/16-skills-enaho) del repo del curso | `descargando-enaho` |
+| Límites departamentales | [`peru_departamental_simple.geojson`](https://raw.githubusercontent.com/d2cml-ai/Data-Science-Python/main/sessions/06-geoespacial/lab/Data/peru_departamental_simple.geojson) | `descargando-enaho` |
 | Series del BCRP | API: `https://estadisticas.bcrp.gob.pe/estadisticas/series/api/{código}/json/{desde}/{hasta}` ([documentación](https://estadisticas.bcrp.gob.pe/estadisticas/series/documentos/bcrpdataapi.pdf)) | servidor `bcrp`, al consultar |
 | Boletines de la SBS | archivos oficiales de la SBS; cada respuesta del servidor trae la URL del boletín ([detalle](https://github.com/rodnm/mcp-sbs-peru)) | servidor `sbs`, al consultar |
-| Referencia departamental de la sesión 16 | [`referencias/pobreza_departamento_2024.csv`](referencias/pobreza_departamento_2024.csv) | incluida en el repo |
+| Cifras oficiales de pobreza 2024 (INEI) | [`referencias/inei_pobreza_2024.csv`](referencias/inei_pobreza_2024.csv) | incluida en el repo, extraída de Cuadros III.1 y III.4 del informe técnico del INEI |
 
 Los microdatos no se suben al repositorio: `datos/` está en `.gitignore`.
+
+### Referencias bibliográficas (norma APA 7ma edición)
+
+- **Banco Central de Reserva del Perú.** (2025). *Estadísticas económicas: Series de inflación y actividad económica* [Servicio web de datos / API]. <https://estadisticas.bcrp.gob.pe/estadisticas/series/api/>
+- **Instituto Geográfico Nacional & OCHA HDX.** (2024). *Perú - Subnational Administrative Boundaries* [Conjunto de datos geoespaciales]. Human Data Exchange. <https://data.humdata.org/dataset/cod-ab-per>
+- **Instituto Nacional de Estadística e Informática.** (2025a). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024* [Microdatos, módulos 34 y 02]. <https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/>
+- **Instituto Nacional de Estadística e Informática.** (2025b). *Perú: Evolución de la Pobreza Monetaria 2015-2024. Informe técnico*. Lima: INEI. <https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf>
+- **Superintendencia de Banca, Seguros y AFP.** (2024). *Boletín Estadístico de Banca Múltiple y Cajas Municipales (Diciembre 2024)* [Boletines B-2401, C-1301 y B-2332]. <https://intranet2.sbs.gob.pe/estadistica/financiera/>
 
 ## 6. Instalación
 
@@ -154,7 +168,10 @@ Son 10 preguntas con respuesta verificable: 4 del BCRP, 4 de la ENAHO y 2 mixtas
   - Con solo el MCP acierta 8, porque repite los errores de la ENAHO del Modo A.
   - Con solo las skills acierta 10, porque llamó a la API del BCRP por su cuenta.
   - La primera versión de la ablación tenía fugas entre componentes, y se documenta cómo se corrigió.
-- **Robustez:** el Modo A cumplió la conducta esperada en 7 de 8 pedidos ambiguos o imposibles y el Modo B en 6. Ninguno inventó un dato inexistente.
+- **Robustez:** son 12 pedidos ambiguos, imposibles o con premisas dudosas, con la conducta esperada fijada antes de correr.
+  - El Modo A cumplió la conducta en 11 y el Modo B en 10. Ninguno inventó un dato inexistente.
+  - En los pedidos de causalidad y de dos fuentes de morosidad, la revisión manual aprobó a los dos modos.
+  - En el de frecuencias incompatibles, B correlacionó promedios mensuales con `comparar_series`. A dio como cifra principal la correlación con los datos diarios y usó el promedio mensual solo como control.
 
 Las tablas completas salen de `uv run evaluacion/analizar.py` → [`evaluacion/metricas.md`](evaluacion/metricas.md). Los datos están en [`resultados.csv`](evaluacion/resultados.csv) y [`robustez_resultados.csv`](evaluacion/robustez_resultados.csv).
 
@@ -192,11 +209,17 @@ Usó 2 servidores MCP y 5 skills en 41 turnos, 188 segundos y USD 0.76. La trans
 | 23–26 | `armar_informe.py` | [`informes/informe_final.md`](informes/informe_final.md), con 41 cifras trazadas |
 | 27–28 | skill `verificando-consistencia` | [`salidas/consistencia.md`](salidas/consistencia.md): 8 de 8 OK |
 
-Las salidas de la ENAHO regeneradas coinciden byte a byte con las versionadas.
+Las salidas tabulares (CSV) de la ENAHO regeneradas coinciden byte a byte con las versionadas.
 
 ## 12. Evidencias del uso de IA
 
-Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/), ordenadas por etapa (`mcp/`, `skills/`, `integracion/`, `evaluacion/`). Se exportaron con [`scripts/exportar_evidencias.py`](scripts/exportar_evidencias.py), que convierte las transcripciones JSONL de Claude Code en Markdown y oculta rutas personales, nombres de usuario, correos, claves y tokens.
+Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/):
+- la sesión de desarrollo completa;
+- los subagentes (`subagentes/`);
+- la demostración de encadenamiento de skills (`skills/`);
+- las corridas integradas (`integracion/`).
+
+Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaron con [`scripts/exportar_evidencias.py`](scripts/exportar_evidencias.py), que convierte las transcripciones JSONL de Claude Code en Markdown y oculta rutas personales, nombres de usuario, correos, claves y tokens.
 
 ## Innovaciones
 
@@ -210,6 +233,22 @@ Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/),
 | Calidad al desactivar herramientas | modos `memoria`, `solo-mcp`, `solo-skills` y `sin-propia` de `evaluacion/evaluar.py` → `evaluacion/ablacion.md` |
 | Informes con tablas, gráficos y referencias | `armar_informe.py` agrega la trazabilidad y las referencias |
 
+## Trabajo futuro
+
+Para la entrega se mantuvo un alcance acotado: el BCRP de 2020 a 2024, la SBS a diciembre de 2024 y la ENAHO 2024. Estas ampliaciones abrirían preguntas nuevas:
+
+| Ampliación | Pregunta que permitiría responder |
+|---|---|
+| ENAHO de 2020 a 2024, con las validaciones de cada año | ¿Cómo evolucionó la pobreza junto con la inflación y el crecimiento? Hoy el informe combina tendencias nacionales con una sola fotografía territorial. |
+| Morosidad mensual de 2020 a 2024 junto a la inflación | ¿Los cambios de la inflación precedieron a los de la morosidad, y con qué rezago? |
+| Estadísticas financieras por departamento | ¿Los departamentos con más pobreza tienen indicadores financieros distintos? |
+
+- **Morosidad mensual.** El BCRP ya publica la serie mensual de la banca: `PN07746EM`, «Cartera atrasada neta / Colocaciones netas (%)», con fuente SBS, de enero de 2001 a diciembre de 2025.
+  - El MCP actual alcanza para consultarla.
+  - Falta que `comparar_series` admita rezagos.
+  - También falta contrastarla con la morosidad del boletín B-2401 de la SBS, que usa otra definición: créditos atrasados sobre créditos directos.
+- **Estadísticas por departamento.** El catálogo del MCP de la SBS no tiene boletines por departamento, así que haría falta otra fuente.
+
 ## Estructura
 
 ```text
@@ -218,7 +257,7 @@ Las conversaciones con Claude Code están en [`evidencias_ia/`](evidencias_ia/),
 ├── .claude/skills/           descargando, limpiando, graficando, mapeando, informando-peru, verificando-consistencia
 ├── mcp/                      server.py y test_server.py
 ├── tests/                    pruebas sin internet
-├── referencias/              pobreza departamental de la sesión 16
+├── referencias/              cifras oficiales de pobreza 2024 del INEI
 ├── salidas/  figuras/  mapas/  informes/
 ├── evaluacion/               preguntas, verdades, arnés, resultados y análisis
 ├── dashboard/                app.py y logica.py

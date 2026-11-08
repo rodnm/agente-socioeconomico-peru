@@ -10,13 +10,13 @@ allowed-tools: Bash(uv run *)
 2. Si falta `datos/peru_departamental_simple.geojson`, usa primero la skill `descargando-enaho`.
 3. Corre exactamente: `uv run ${CLAUDE_SKILL_DIR}/scripts/mapear.py`
 4. Si el script se detiene, muestra su mensaje y detente: la cifra o la unión están mal.
-5. Responde con `mapas/pobreza_departamento.png` y los departamentos de mayor y menor pobreza que imprime el script. La comparación con la referencia de la sesión 16 queda en `salidas/mapa_vs_referencia.csv`.
+5. Responde con `mapas/pobreza_departamento.png` y los departamentos de mayor y menor pobreza que imprime el script. La comparación con la referencia oficial del INEI queda en `salidas/mapa_vs_referencia.csv`.
 
 ## Reglas que fija el script
 
 - Une por código: `ubigeo[:2]` con `FIRST_IDDP`, como texto. Nunca por nombre: «APURIMAC» no es «Apurímac».
-- Exige 25 departamentos y ninguno sin dato. Se detiene si alguno difiere más de 0.1 puntos de `referencias/pobreza_departamento_2024.csv`.
+- Exige 25 departamentos y ninguno sin dato. Se detiene si alguno difiere más de 0.1 puntos de `referencias/inei_pobreza_2024.csv`.
 - Un color de claro a oscuro, desde 0; nunca arcoíris.
 - Leyenda con la unidad: % de personas.
 - Lima (15) y Callao (07) van separados.
-- Pondera por hogar con `factor07 × mieperho`, como la referencia de la sesión.
+- Pondera por hogar con `factor07 × mieperho`, como en las cifras oficiales del INEI.

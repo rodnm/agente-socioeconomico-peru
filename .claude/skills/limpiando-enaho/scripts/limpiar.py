@@ -12,7 +12,7 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parents[4]
 DATOS = RAIZ / "datos"
 SALIDAS = RAIZ / "salidas"
-REFERENCIA_DEPARTAMENTOS = RAIZ / "referencias" / "pobreza_departamento_2024.csv"
+REFERENCIA_INEI = RAIZ / "referencias" / "inei_pobreza_2024.csv"
 
 ANIO = 2024
 CODIGO_INEI = 966
@@ -87,19 +87,28 @@ class Validacion:
         self.lineas.append(f"{'OK   ' if correcto else 'FALLA'} {nombre}: {detalle}")
         self.fallos += not correcto
 
-    def igual(self, nombre: str, valor: int, esperado: int) -> None:
-        self.registrar(nombre, valor == esperado, f"{valor:,} (esperado {esperado:,})")
+    def igual(self, nombre: str, valor: int, esperado: int, nota: str = "") -> None:
+        desc = f"{valor:,} (conteo en microdatos {nota})" if nota else f"{valor:,} (esperado {esperado:,})"
+        self.registrar(nombre, valor == esperado, desc)
 
-    def cifra(self, nombre: str, valor: float, esperado: float) -> None:
+    def cifra(self, nombre: str, valor: float, esperado: float, ic_inf: float | None = None,
+              ic_sup: float | None = None, cuadro: str = "", pagina: int | str = "", nota: str = "") -> None:
         correcto = abs(valor - esperado) <= TOLERANCIA
-        self.registrar(nombre, correcto, f"{valor:.2f} % (esperado {esperado} ± {TOLERANCIA})")
+        meta_str = f"meta INEI {esperado} ± {TOLERANCIA} %"
+        if ic_inf is not None and ic_sup is not None and not pd.isna(ic_inf):
+            meta_str += f", IC 95%: [{ic_inf:.1f}, {ic_sup:.1f}]"
+        if cuadro and pagina and not pd.isna(pagina):
+            meta_str += f", {cuadro}, p. {pagina}"
+        if nota and not pd.isna(nota):
+            meta_str += f" ({nota})"
+        self.registrar(nombre, correcto, f"{valor:.2f} % ({meta_str})")
 
 
 def validar(sumaria: pd.DataFrame, modulo02: pd.DataFrame, personas: pd.DataFrame, base: pd.DataFrame) -> Validacion:
     v = Validacion()
-    v.igual("Hogares en la sumaria", len(sumaria), HOGARES_ESPERADOS)
-    v.igual("Filas del módulo 02", len(modulo02), FILAS_MODULO_02)
-    v.igual("Residentes habituales", len(personas), RESIDENTES_ESPERADOS)
+    v.igual("Hogares en la sumaria", len(sumaria), HOGARES_ESPERADOS, "sumaria-2024.dta")
+    v.igual("Filas del módulo 02", len(modulo02), FILAS_MODULO_02, "enaho01-2024-200.dta")
+    v.igual("Residentes habituales", len(personas), RESIDENTES_ESPERADOS, "enaho01-2024-200.dta con filtro habitual")
     v.igual("Llaves de hogar repetidas", int(sumaria.duplicated(LLAVES_HOGAR).sum()), 0)
     v.igual("Llaves de persona repetidas", int(personas.duplicated(LLAVES_PERSONA).sum()), 0)
     v.igual("Filas de la base tras la unión", len(base), len(personas))
@@ -109,24 +118,51 @@ def validar(sumaria: pd.DataFrame, modulo02: pd.DataFrame, personas: pd.DataFram
 
     # La pobreza oficial se calcula por hogar: factor07 × mieperho expande cada hogar a sus personas.
     hogares = base.drop_duplicates(LLAVES_HOGAR)
-    v.igual("Hogares en la base", len(hogares), HOGARES_ESPERADOS)
+    v.igual("Hogares en la base", len(hogares), HOGARES_ESPERADOS, "base de hogares")
     peso = hogares["peso_hogar"]
-    v.cifra("Pobreza nacional (hogares, factor07 × mieperho)", tasa(hogares["pobre"], peso), POBREZA_NACIONAL)
-    v.cifra("Pobreza nacional (personas, facpob07)", tasa(base["pobre"], base["facpob07"]), POBREZA_NACIONAL)
-    v.cifra("Pobreza extrema", tasa(hogares["pobreza"] == 1, peso), POBREZA_EXTREMA)
-    v.cifra("Pobreza urbana", tasa(hogares["pobre"][hogares["urbano"]], peso[hogares["urbano"]]), POBREZA_URBANA)
-    v.cifra("Pobreza rural", tasa(hogares["pobre"][~hogares["urbano"]], peso[~hogares["urbano"]]), POBREZA_RURAL)
-    lima = hogares["dominio"] == 8
-    v.cifra("Pobreza en Lima Metropolitana", tasa(hogares["pobre"][lima], peso[lima]), POBREZA_LIMA_METROPOLITANA)
+    v.cifra("Pobreza nacional (hogares, factor07 × mieperho)", tasa(hogares["pobre"], peso), POBREZA_NACIONAL,
+            26.6, 28.6, "Cuadro III.1", 219)
+    v.cifra("Pobreza nacional (personas, facpob07)", tasa(base["pobre"], base["facpob07"]), POBREZA_NACIONAL,
+            26.6, 28.6, "Cuadro III.1", 219, "ponderador facpob07")
+    v.cifra("Pobreza extrema", tasa(hogares["pobreza"] == 1, peso), POBREZA_EXTREMA,
+            5.0, 6.0, "Cuadro III.4", 72)
+    v.cifra("Pobreza urbana", tasa(hogares["pobre"][hogares["urbano"]], peso[hogares["urbano"]]), POBREZA_URBANA,
+            23.6, 26.0, "Cuadro III.1", 219)
+    v.cifra("Pobreza rural", tasa(hogares["pobre"][~hogares["urbano"]], peso[~hogares["urbano"]]), POBREZA_RURAL,
+            37.6, 41.0, "Cuadro III.1", 219)
+    lima_callao = hogares["dominio"] == 8
+    v.cifra("Pobreza en Lima Metropolitana con Callao", tasa(hogares["pobre"][lima_callao], peso[lima_callao]),
+            POBREZA_LIMA_METROPOLITANA, 25.9, 30.6, "Cuadro III.1", 219, "dominio 8")
 
-    referencia = pd.read_csv(REFERENCIA_DEPARTAMENTOS, dtype={"ccdd": str})
-    for fila in referencia.itertuples():
-        de_aqui = hogares["departamento"] == fila.ccdd
-        if de_aqui.any():
-            v.cifra(f"Pobreza en {fila.departamento}", tasa(hogares["pobre"][de_aqui], peso[de_aqui]), fila.pobreza_pct)
+    ref = pd.read_csv(REFERENCIA_INEI, dtype={"ccdd": str})
+    for fila in ref.itertuples():
+        if not fila.ccdd or pd.isna(fila.ccdd):
+            continue
+        if fila.ccdd == "1501":
+            de_aqui = hogares["ubigeo"].str.startswith("1501")
+            nombre_val = "Pobreza en Lima Metropolitana (provincia 1501)"
+        elif fila.ccdd == "15_resto":
+            de_aqui = (hogares["departamento"] == "15") & (~hogares["ubigeo"].str.startswith("1501"))
+            nombre_val = "Pobreza en Lima provincias"
+        elif fila.ccdd == "15":
+            de_aqui = hogares["departamento"] == "15"
+            nombre_val = "Pobreza en LIMA (departamento completo, consigna)"
         else:
-            v.registrar(f"Pobreza en {fila.departamento}", False, "sin hogares en la base")
-    v.igual("Departamentos con hogares", hogares["departamento"].nunique(), len(DEPARTAMENTOS))
+            de_aqui = hogares["departamento"] == fila.ccdd
+            nombre_val = f"Pobreza en {fila.ambito}"
+
+        if de_aqui.any():
+            ic_inf = float(fila.ic_inf) if not pd.isna(fila.ic_inf) else None
+            ic_sup = float(fila.ic_sup) if not pd.isna(fila.ic_sup) else None
+            cuadro = str(fila.cuadro) if not pd.isna(fila.cuadro) else ""
+            pagina = str(int(float(fila.pagina))) if str(fila.pagina).replace(".", "", 1).isdigit() else str(fila.pagina)
+            nota = str(fila.nota) if not pd.isna(fila.nota) else ""
+            v.cifra(nombre_val, tasa(hogares["pobre"][de_aqui], peso[de_aqui]), float(fila.valor),
+                    ic_inf, ic_sup, cuadro, pagina, nota)
+        else:
+            v.registrar(nombre_val, False, "sin hogares en la base")
+
+    v.igual("Departamentos con hogares", hogares["departamento"].nunique(), len(DEPARTAMENTOS), "consigna de 25 departamentos")
     return v
 
 
@@ -156,6 +192,10 @@ def indicadores(base: pd.DataFrame) -> pd.DataFrame:
     pobreza("pobreza_area_rural", "Pobreza monetaria", "Rural", hogares, ~hogares["urbano"], "peso_hogar", PESO_HOGAR)
     pobreza("pobreza_lima_metropolitana", "Pobreza monetaria", "Lima Metropolitana", hogares,
             hogares["dominio"] == 8, "peso_hogar", PESO_HOGAR)
+    pobreza("pobreza_lima_metropolitana_provincia", "Pobreza monetaria", "Lima Metropolitana (provincia)", hogares,
+            hogares["ubigeo"].str.startswith("1501"), "peso_hogar", PESO_HOGAR)
+    pobreza("pobreza_lima_provincias", "Pobreza monetaria", "Lima provincias", hogares,
+            (hogares["departamento"] == "15") & (~hogares["ubigeo"].str.startswith("1501")), "peso_hogar", PESO_HOGAR)
     for codigo, nombre in DEPARTAMENTOS.items():
         pobreza(f"pobreza_dep_{codigo}", "Pobreza monetaria", nombre, hogares, hogares["departamento"] == codigo,
                 "peso_hogar", PESO_HOGAR)
@@ -218,7 +258,7 @@ def main() -> None:
     resultado = validar(sumaria, modulo02, personas, base)
     SALIDAS.mkdir(exist_ok=True)
     ruta_validacion = SALIDAS / "validacion.txt"
-    encabezado = f"Validación de la ENAHO {ANIO} contra las cifras de la sesión y del INEI\n\n"
+    encabezado = f"Validación de la ENAHO {ANIO} contra las cifras oficiales del INEI (Informe Técnico 2025)\n\n"
     ruta_validacion.write_text(encabezado + "\n".join(resultado.lineas) + "\n", encoding="utf-8")
     if resultado.fallos:
         sys.exit(f"{resultado.fallos} comprobaciones fallaron. Revisa salidas/validacion.txt.")

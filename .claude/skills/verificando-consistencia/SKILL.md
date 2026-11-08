@@ -14,7 +14,7 @@ allowed-tools: Bash(uv run *), Read
 
 | Fuente | Verificación |
 |---|---|
-| ENAHO | Pobreza nacional con peso de hogar frente a peso de persona; validaciones de la limpieza; la tasa nacional entre la urbana y la rural; los 25 departamentos frente a la referencia de la sesión 16; el mapa frente a los indicadores |
+| ENAHO | Pobreza nacional con peso de hogar frente a peso de persona; validaciones de la limpieza; la tasa nacional entre la urbana y la rural; los 25 departamentos frente al informe técnico del INEI; el mapa frente a los indicadores |
 | BCRP | La inflación a 12 meses recalculada desde el índice del IPC vigente (`PN38705PM`, Dic.2021 = 100) frente a la publicada (`PN01273PM`); `resumen` frente a los datos de `serie` |
 | Informe | Cada cifra de `informes/informe_final.md` frente a una nueva consulta a sus herramientas |
 

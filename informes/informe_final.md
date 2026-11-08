@@ -61,7 +61,7 @@ El informe cubre tres periodos distintos: las series mensuales del BCRP de enero
 
 ## Trazabilidad de las cifras
 
-Cada cifra del informe se generó con `armar_informe.py` desde `informes/borrador.md` el 2026-11-02 16:47, sobre el commit `7f98cb6`. Ninguna se escribió a mano.
+Cada cifra del informe se generó con `armar_informe.py` desde `informes/borrador.md` el 2026-11-05 14:41, sobre el commit `1779b27`. Ninguna se escribió a mano.
 
 | # | Cifra | Origen | Fuente |
 |---|---|---|---|
@@ -109,23 +109,14 @@ Cada cifra del informe se generó con `armar_informe.py` desde `informes/borrado
 
 ## Referencias
 
-- INEI, ENAHO 2024, módulo 34 (sumaria): https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo34.zip
-- INEI, ENAHO 2024, módulo 02 (miembros del hogar): https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/966-Modulo02.zip
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01273PM/json/2020-1/2024-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01273PM/json/2020-12/2020-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01273PM/json/2021-12/2021-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01273PM/json/2022-12/2022-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01273PM/json/2023-12/2023-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01273PM/json/2024-12/2024-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01728AM/json/2020-1/2020-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01728AM/json/2020-1/2024-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01728AM/json/2021-1/2021-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01728AM/json/2022-1/2022-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01728AM/json/2023-1/2023-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01728AM/json/2024-1/2024-12
-- https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01728AM/json/2024-12/2024-12
-- https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/B-2332-di2024.XLS
-- https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/B-2401-di2024.XLS
-- https://intranet2.sbs.gob.pe/estadistica/financiera/2024/Diciembre/C-1301-di2024.XLS
-- Procesamiento: `.claude/skills/limpiando-enaho/scripts/limpiar.py` → `salidas/indicadores.csv`, `salidas/validacion.txt`.
-- Servidor MCP del BCRP: `mcp/server.py`; otros servidores en `.mcp.json`.
+### Fuentes oficiales consultadas (norma APA 7ma edición)
+
+- Banco Central de Reserva del Perú. (2025). *Estadísticas económicas: Series de inflación y actividad económica* [Servicio web de datos / API]. https://estadisticas.bcrp.gob.pe/estadisticas/series/api/
+- Instituto Nacional de Estadística e Informática. (2025a). *Encuesta Nacional de Hogares sobre Condiciones de Vida y Pobreza 2024* [Microdatos, módulos 34 y 02]. https://proyectos.inei.gob.pe/iinei/srienaho/descarga/STATA/
+- Instituto Nacional de Estadística e Informática. (2025b). *Perú: Evolución de la Pobreza Monetaria 2015-2024. Informe técnico*. Lima: INEI. https://cdn.www.gob.pe/uploads/document/file/8058556/6763186-peru-evolucion-de-la-pobreza-monetaria-2015-2024.pdf
+- Superintendencia de Banca, Seguros y AFP. (2024). *Boletín Estadístico de Banca Múltiple y Cajas Municipales (Diciembre 2024)* [Boletines B-2401, C-1301 y B-2332]. https://intranet2.sbs.gob.pe/estadistica/financiera/
+
+### Trazabilidad y procesamiento de código
+
+- Procesamiento de microdatos: `.claude/skills/limpiando-enaho/scripts/limpiar.py` → `salidas/indicadores.csv`, `salidas/validacion.txt`.
+- Servidor MCP del BCRP: `mcp/server.py`; servidores SBS y Fetch en `.mcp.json`.

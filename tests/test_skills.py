@@ -26,6 +26,7 @@ def copiar_proyecto(destino: Path, skills=("limpiando-enaho", "graficando-enaho"
     for skill in skills:
         shutil.copytree(SKILLS / skill, destino / ".claude" / "skills" / skill)
     shutil.copytree(RAIZ / "referencias", destino / "referencias")
+    shutil.copytree(RAIZ / "scripts", destino / "scripts")
     if datos:
         (destino / "datos").mkdir()
         for archivo in ZIPS + [RAIZ / "datos" / "peru_departamental_simple.geojson"]:
@@ -68,6 +69,8 @@ def test_indicadores_versionados_cumplen_las_validaciones():
     assert tabla.index.str.startswith("pobreza_dep_").sum() == 25
     assert abs(tabla.loc["pobreza_area_urbana", "valor"] - 24.8) <= 0.1
     assert abs(tabla.loc["pobreza_area_rural", "valor"] - 39.3) <= 0.1
+    assert "pobreza_lima_metropolitana_provincia" in tabla.index
+    assert "pobreza_lima_provincias" in tabla.index
     validacion = (RAIZ / "salidas" / "validacion.txt").read_text(encoding="utf-8")
     assert "FALLA" not in validacion
 
@@ -86,14 +89,14 @@ def test_limpiar_reproduce_los_indicadores_versionados(tmp_path):
 def test_limpiar_se_detiene_si_falla_una_validacion(tmp_path):
     # Una referencia alterada para Cusco debe detener el proceso sin escribir la base: nada de forzar cifras
     raiz = copiar_proyecto(tmp_path, skills=("limpiando-enaho",), datos=True)
-    referencia = raiz / "referencias" / "pobreza_departamento_2024.csv"
+    referencia = raiz / "referencias" / "inei_pobreza_2024.csv"
     tabla = pd.read_csv(referencia, dtype={"ccdd": str})
-    tabla.loc[tabla["ccdd"] == "08", "pobreza_pct"] = 50.0
+    tabla.loc[tabla["ccdd"] == "08", "valor"] = 50.0
     tabla.to_csv(referencia, index=False)
     r = correr(raiz, "limpiando-enaho", "limpiar.py", "--anio", "2024")
     assert r.returncode != 0
     assert "comprobaciones fallaron" in r.stderr
-    assert "FALLA Pobreza en CUSCO" in (raiz / "salidas" / "validacion.txt").read_text(encoding="utf-8")
+    assert "FALLA Pobreza en Cusco" in (raiz / "salidas" / "validacion.txt").read_text(encoding="utf-8")
     assert not (raiz / "salidas" / "personas_2024.parquet").exists()
 
 

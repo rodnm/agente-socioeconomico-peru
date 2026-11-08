@@ -3,7 +3,7 @@
 Todo el proyecto se desarrolló con Claude Code en una sola sesión, con subagentes para tareas acotadas, y con corridas automáticas de `claude -p` para demostrar y evaluar el agente. Las transcripciones se exportaron con [`scripts/exportar_evidencias.py`](../scripts/exportar_evidencias.py) (opción B del enunciado):
 - Cada archivo empieza con una línea de tiempo de las herramientas usadas.
 - Conserva los pedidos, las respuestas, cada llamada a una herramienta con sus argumentos y un extracto de cada resultado.
-- Oculta rutas personales, nombres de usuario, correos, claves y tokens.
+- Oculta rutas personales, nombres de usuario, correos, claves y tokens, antes de recortar cada resultado. Con `--ocultar` se agregan otros textos, como el usuario de un correo que aparece sin la @.
 - Las horas de la sesión están en UTC.
 
 ## Sesión de desarrollo
@@ -14,6 +14,7 @@ Todo el proyecto se desarrolló con Claude Code en una sola sesión, con subagen
 - Las skills de la ENAHO, el informe y la verificación de consistencia.
 - El segundo MCP (SBS), el arnés de evaluación y el dashboard.
 - Las corridas integradas, la evaluación y las correcciones que surgieron de ellas.
+- La propuesta de preguntas pegada el 5 de noviembre, de la que salieron cuatro pedidos de robustez nuevos y la sección de trabajo futuro.
 
 A mitad de la sesión, Claude Code compactó el contexto. El resumen que generó aparece plegado y no cuenta como pedido de la persona.
 
@@ -28,6 +29,7 @@ Algunos hitos para buscar en el archivo:
 | Índice del IPC descontinuado | `PN38705PM` |
 | Revisión de código aprobada | `acknowledge-approved` |
 | Ablación con fugas y su corrección | `crudos-con-mcp` |
+| Propuesta pegada y robustez ampliada | `Texto pegado`, `r12` |
 
 ## Subagentes
 

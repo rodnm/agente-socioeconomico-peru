@@ -45,11 +45,11 @@ Nombres, etiquetas y códigos leídos de los `.dta` del INEI (código de encuest
 | Pobreza nacional, por área, dominio o departamento | `peso_hogar` | Una por hogar |
 | Pobreza por sexo o edad | `facpob07` | Todas |
 
-Usar `peso_hogar` sin quitar duplicados cuenta cada hogar tantas veces como residentes tenga. Con `facpob07` la cifra nacional da 27.53 % en vez de 27.58 %, pero 14 departamentos se alejan más de 0.1 puntos de la referencia (Puno 40.42 % frente a 39.9 %).
+Usar `peso_hogar` sin quitar duplicados cuenta cada hogar tantas veces como residentes tenga. Con `facpob07` la cifra nacional da 27.53 % en vez de 27.58 %, pero 14 departamentos se alejan más de 0.1 puntos de la referencia del INEI (Puno 40.42 % frente a 39.9 %).
 
 ## `salidas/indicadores.csv`
 
-Una fila por indicador, con `id`, `indicador`, `grupo`, `valor`, `unidad`, `ponderador`, `n_muestral` y `fuente`. Los `id` son estables y los cita el informe: `pobreza_nacional`, `pobreza_nacional_personas`, `pobreza_extrema`, `pobreza_area_urbana`, `pobreza_area_rural`, `pobreza_lima_metropolitana`, `pobreza_dep_01` a `pobreza_dep_25` (código `ubigeo[:2]`), `pobreza_sexo_hombres`, `pobreza_sexo_mujeres`, `pobreza_edad_0_14` a `pobreza_edad_60_mas`, `residentes_habituales`, `hogares`, `poblacion_expandida` y `departamentos`.
+Una fila por indicador, con `id`, `indicador`, `grupo`, `valor`, `unidad`, `ponderador`, `n_muestral` y `fuente`. Los `id` son estables y los cita el informe: `pobreza_nacional`, `pobreza_nacional_personas`, `pobreza_extrema`, `pobreza_area_urbana`, `pobreza_area_rural`, `pobreza_lima_metropolitana`, `pobreza_lima_metropolitana_provincia`, `pobreza_lima_provincias`, `pobreza_dep_01` a `pobreza_dep_25` (código `ubigeo[:2]`), `pobreza_sexo_hombres`, `pobreza_sexo_mujeres`, `pobreza_edad_0_14` a `pobreza_edad_60_mas`, `residentes_habituales`, `hogares`, `poblacion_expandida` y `departamentos`.
 
 ## Seis trampas
 

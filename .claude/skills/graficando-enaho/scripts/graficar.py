@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 RAIZ = Path(__file__).resolve().parents[4]
+if str(RAIZ / "scripts") not in sys.path:
+    sys.path.insert(0, str(RAIZ / "scripts"))
+import estilo_graficos
 BASE = RAIZ / "salidas" / "personas_2024.parquet"
 FIGURAS = RAIZ / "figuras"
 
@@ -57,9 +60,17 @@ def por_edad(base: pd.DataFrame) -> pd.Series:
 
 
 def por_departamento(base: pd.DataFrame) -> pd.Series:
-    # Como la cifra oficial: una fila por hogar. El nombre es solo para mostrar; el código lo fija limpiar.py.
-    hogares = base.drop_duplicates(LLAVES_HOGAR)
-    return tasa_por_grupo(hogares, hogares["departamento_nombre"], "peso_hogar").sort_values(ascending=False)
+    # 26 ámbitos territoriales de análisis oficial (Cuadro III.1 del INEI):
+    # 24 departamentos, Callao, Lima Metropolitana (provincia 1501) y Lima Provincias.
+    hogares = base.drop_duplicates(LLAVES_HOGAR).copy()
+
+    def ambito(r):
+        if r["departamento"] == "15":
+            return "Lima Metropolitana (prov.)" if str(r["ubigeo"])[:4] == "1501" else "Lima Provincias"
+        return r["departamento_nombre"]
+
+    ambitos = hogares.apply(ambito, axis=1)
+    return tasa_por_grupo(hogares, ambitos, "peso_hogar").sort_values(ascending=False)
 
 
 def titulo_area(t: pd.Series) -> str:
@@ -98,44 +109,33 @@ def _estilo(eje) -> None:
 
 def dibujar(tasas: pd.Series, tema: str, nota: str, titulo: str, destino: Path, referencia: float) -> None:
     horizontal = len(tasas) > 6  # muchas categorías: barras horizontales para que los nombres se lean
-    figura, eje = plt.subplots(figsize=(8, 8.6) if horizontal else (7.6, 5.2), facecolor=COLOR_FONDO)
-    eje.set_facecolor(COLOR_FONDO)
+    figura, eje = plt.subplots(figsize=(8.2, 9.2) if horizontal else (7.6, 5.2), facecolor=estilo_graficos.COLOR_FONDO)
+    eje.set_facecolor(estilo_graficos.COLOR_FONDO)
     etiqueta = "% de personas en pobreza"
     if horizontal:
         orden = tasas.sort_values()
-        barras = eje.barh(range(len(orden)), orden.to_numpy(), height=0.7, color=COLOR_BARRA)
-        eje.set_yticks(range(len(orden)), [str(n) for n in orden.index], color=COLOR_TEXTO, fontsize=10)
-        eje.set_xlim(0, orden.max() * 1.15)
-        eje.set_xlabel(etiqueta, color=COLOR_SECUNDARIO, fontsize=10)
-        eje.axvline(referencia, color=COLOR_SECUNDARIO, linewidth=1, linestyle="--", zorder=0)
-        eje.text(referencia, len(orden) - 0.3, f" Nacional: {referencia:.1f} %", color=COLOR_TEXTO, fontsize=9)
+        barras = eje.barh(range(len(orden)), orden.to_numpy(), height=0.68, color=estilo_graficos.COLOR_BARRA)
+        eje.set_yticks(range(len(orden)), [str(n) for n in orden.index], color=estilo_graficos.COLOR_TEXTO, fontsize=9.5)
+        eje.set_xlim(0, max(orden.max() * 1.15, 10))
+        eje.set_xlabel(etiqueta, color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9.5)
+        eje.axvline(referencia, color=estilo_graficos.COLOR_SECUNDARIO, linewidth=1, linestyle="--", zorder=0)
+        eje.text(referencia, len(orden) - 0.4, f" Nacional: {referencia:.1f} %", color=estilo_graficos.COLOR_TEXTO, fontsize=8.5, fontweight="bold")
     else:
-        barras = eje.bar(range(len(tasas)), tasas.to_numpy(), width=0.62, color=COLOR_BARRA)
-        eje.set_xticks(range(len(tasas)), [str(n) for n in tasas.index], color=COLOR_TEXTO, fontsize=11)
+        barras = eje.bar(range(len(tasas)), tasas.to_numpy(), width=0.55, color=estilo_graficos.COLOR_BARRA)
+        eje.set_xticks(range(len(tasas)), [str(n) for n in tasas.index], color=estilo_graficos.COLOR_TEXTO, fontsize=10.5)
         eje.set_ylim(0, max(tasas.max() * 1.18, 10))
-        eje.set_ylabel(etiqueta, color=COLOR_SECUNDARIO, fontsize=9)
-    # El fondo de cada etiqueta tapa la línea del promedio nacional donde se cruzan
-    eje.bar_label(barras, fmt="%.1f %%", padding=4, color=COLOR_TEXTO, fontsize=9 if horizontal else 12,
-                  fontweight="bold", bbox={"facecolor": COLOR_FONDO, "edgecolor": "none", "pad": 0.6})
-    _estilo(eje)
+        eje.set_ylabel(etiqueta, color=estilo_graficos.COLOR_SECUNDARIO, fontsize=9.5)
 
-    # Posiciones en fracción de la figura, según su alto y las líneas que ocupa el título
-    lineas = textwrap.wrap(titulo, 78 if horizontal else 66)
-    renglon = 12.5 * 1.3 / 72 / figura.get_figheight()
-    arriba = 0.985 if horizontal else 0.975
-    debajo = arriba - len(lineas) * renglon - 0.01
-    margen = debajo - 2.2 * renglon
-    # figura.text y no suptitle: tight_layout reservaría otra vez el espacio del título
-    figura.text(0.02, arriba, "\n".join(lineas), ha="left", va="top", color=COLOR_TEXTO, fontsize=12.5,
-                fontweight="bold")
-    figura.text(0.02, debajo, f"Pobreza monetaria por {tema}, Perú 2024 (% de personas)", va="top",
-                color=COLOR_SECUNDARIO, fontsize=10)
-    figura.text(0.02, 0.015, f"Fuente: INEI, ENAHO 2024 (módulos 34 y 02). {nota}", color=COLOR_SECUNDARIO,
-                fontsize=8.5)
-    figura.tight_layout(rect=(0, 0.035, 1, margen))
+    eje.bar_label(barras, fmt="%.1f %%", padding=4, color=estilo_graficos.COLOR_TEXTO, fontsize=8.5 if horizontal else 11,
+                  fontweight="bold", bbox={"facecolor": estilo_graficos.COLOR_FONDO, "edgecolor": "none", "pad": 0.5})
+    estilo_graficos.estilizar_ejes(eje, horizontal=horizontal)
+
+    subtitulo = f"Pobreza monetaria por {tema}, Perú 2024 (% de personas)"
+    fuente = f"Fuente: INEI, ENAHO 2024 (módulos 34 y 02). {nota}"
+    estilo_graficos.encabezado(figura, eje, titulo=titulo, subtitulo=subtitulo, fuente=fuente)
 
     FIGURAS.mkdir(exist_ok=True)
-    figura.savefig(destino, dpi=200, facecolor=COLOR_FONDO, metadata={"Software": None})
+    figura.savefig(destino, dpi=200, facecolor=estilo_graficos.COLOR_FONDO, metadata={"Software": None})
     plt.close(figura)
 
 

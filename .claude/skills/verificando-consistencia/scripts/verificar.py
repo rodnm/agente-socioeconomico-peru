@@ -24,6 +24,7 @@ ARMAR = RAIZ / ".claude" / "skills" / "informando-peru" / "scripts" / "armar_inf
 # IPC de Lima Metropolitana: índice vigente (Dic.2021 = 100) y variación a 12 meses. El índice base 2009, PN01270PM,
 # quedó descontinuado en diciembre de 2021.
 IPC_INDICE, IPC_12_MESES = "PN38705PM", "PN01273PM"
+SERIE_MOROSIDAD_BCRP = "PN07746EM"
 TOLERANCIA_ENAHO = 0.1      # puntos porcentuales, la del enunciado
 TOLERANCIA_RECALCULO = 0.05  # puntos: el índice se publica con 2 decimales y la variación sale del índice sin redondear
 
@@ -49,7 +50,10 @@ def verificar_enaho(reg):
         reg.agregar("ENAHO", "Indicadores procesados", "NO VERIFICABLE", "falta salidas/indicadores.csv",
                     "Corre la skill limpiando-enaho.")
         return
-    t = pd.read_csv(indicadores).set_index("id")["valor"]
+    t = pd.read_csv(indicadores)
+    if "anio" in t.columns:
+        t = t[t["anio"] == 2024]
+    t = t.set_index("id")["valor"]
     reg.comparar("ENAHO", "Pobreza nacional: peso de hogar frente a peso de persona", t["pobreza_nacional"],
                  t["pobreza_nacional_personas"], TOLERANCIA_ENAHO, "DIFERENCIA",
                  "Dos ponderadores distintos: factor07 × mieperho reproduce la cifra oficial del INEI.")
@@ -133,6 +137,58 @@ def verificar_bcrp(reg, anio):
                 "promedio, máximo, mínimo y cambio coinciden" if not distintos else f"distintos: {distintos}")
 
 
+async def _consultar_morosidad(anio: int):
+    # 1. BCRP PN07746EM
+    sys.path.insert(0, str(RAIZ / "mcp"))
+    from server import mcp
+    async with Client(mcp) as c_bcrp:
+        bcrp_res = (await c_bcrp.call_tool("serie", {
+            "codigo": SERIE_MOROSIDAD_BCRP, "desde": f"{anio}-12", "hasta": f"{anio}-12"
+        })).data
+
+    # 2. SBS B-2401
+    import json
+    config = json.loads((RAIZ / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
+    async with Client({"mcpServers": {"sbs": config["sbs"]}}) as c_sbs:
+        sbs_res = (await c_sbs.call_tool("indicadores", {
+            "tipo_entidad": "banca", "indicador": "morosidad", "periodo": f"{anio}-12"
+        })).data
+    return bcrp_res, sbs_res
+
+
+def verificar_morosidad(reg, anio: int):
+    """Contrasta la tasa de morosidad bancaria a diciembre entre BCRP (PN07746EM) y SBS (B-2401)."""
+    periodo = f"{anio}-12"
+    try:
+        bcrp_res, sbs_res = asyncio.run(_consultar_morosidad(anio))
+        valor_bcrp = float(bcrp_res["datos"][-1]["valor"])
+        indicadores_sbs = sbs_res.get("indicadores", [])
+        valor_sbs = None
+        if indicadores_sbs and "total" in indicadores_sbs[0]:
+            valor_sbs = float(indicadores_sbs[0]["total"]["valor"])
+        elif "total" in sbs_res:
+            valor_sbs = float(sbs_res["total"]["valor"])
+
+        if valor_sbs is not None:
+            dif = abs(valor_bcrp - valor_sbs)
+            reg.agregar(
+                "BCRP / SBS",
+                f"Morosidad bancaria en {periodo}: BCRP ({SERIE_MOROSIDAD_BCRP}) frente a SBS (B-2401)",
+                "DIFERENCIA",
+                f"BCRP {valor_bcrp:.2f} % frente a SBS {valor_sbs:.2f} % (diferencia {dif:.2f} puntos porcentuales)",
+                "Diferencia metodológica esperada entre la definición bruta de la SBS (B-2401: ratio cartera atrasada "
+                "sobre créditos directos) y la definición neta del BCRP (PN07746EM: cartera atrasada neta de provisiones "
+                "sobre colocaciones netas).",
+            )
+        else:
+            reg.agregar("BCRP / SBS", f"Morosidad bancaria en {periodo}", "NO VERIFICABLE",
+                        "No se pudo extraer el total de morosidad de la respuesta de la SBS", "")
+    except Exception as e:
+        motivo = str(e).splitlines()[0][:200]
+        reg.agregar("BCRP / SBS", f"Morosidad bancaria en {periodo}: BCRP ({SERIE_MOROSIDAD_BCRP}) frente a SBS (B-2401)",
+                    "NO VERIFICABLE", motivo, "No se pudo consultar el BCRP o la SBS para contrastar morosidad.")
+
+
 def verificar_informe(reg):
     if not (INFORME.is_file() and BORRADOR.is_file()):
         reg.agregar("Informe", "Cifras del informe frente a sus fuentes", "NO VERIFICABLE",
@@ -181,6 +237,7 @@ def main():
     verificar_enaho(reg)
     if not args.sin_bcrp:
         verificar_bcrp(reg, args.anio_bcrp)
+        verificar_morosidad(reg, args.anio_bcrp)
     verificar_informe(reg)
     conteo = escribir(reg)
     print("salidas/consistencia.md: " + ", ".join(f"{k} {v}" for k, v in sorted(conteo.items())))

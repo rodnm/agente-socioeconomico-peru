@@ -70,9 +70,12 @@ def huella(ruta: Path):
     return ruta.stat().st_mtime_ns if ruta.exists() else 0
 
 
-def cargar_indicadores(ruta: Path = INDICADORES) -> pd.DataFrame:
-    return _leer(ruta, ["id", "indicador", "grupo", "valor", "unidad", "ponderador", "n_muestral", "fuente"],
-                 dtype={"id": str})
+def cargar_indicadores(ruta: Path = INDICADORES, anio: int | None = 2024) -> pd.DataFrame:
+    df = _leer(ruta, ["anio", "id", "indicador", "grupo", "valor", "unidad", "ponderador", "n_muestral", "fuente"],
+               dtype={"id": str})
+    if "anio" in df.columns and anio is not None:
+        df = df[df["anio"] == anio].reset_index(drop=True)
+    return df
 
 
 def cargar_comparacion(ruta: Path = COMPARACION) -> pd.DataFrame:

@@ -3,7 +3,8 @@
     uv run .claude/skills/informando-peru/scripts/armar_informe.py [--borrador B] [--salida S] [--permitir-faltantes]
 
 Marcadores que reemplaza:
-    {{enaho.pobreza_nacional}}            el valor de salidas/indicadores.csv, con 1 decimal
+    {{enaho.pobreza_nacional}}            el valor de salidas/indicadores.csv (año 2024 por defecto)
+    {{enaho.pobreza_nacional:2020}}       el valor de salidas/indicadores.csv para el año especificado
     {{enaho.residentes_habituales|0}}     con 0 decimales (los enteros llevan separador de miles)
     {{bcrp.resumen(codigo=PN01273PM, desde=2024-01, hasta=2024-12).ultimo.valor|2}}
     {{sbs.indicadores(...).campo[0].otro}} cualquier herramienta de un servidor de .mcp.json, y un campo de su respuesta
@@ -128,7 +129,7 @@ def fuente_de(resultado, servidor):
 
 
 def resolver(borrador, permitir_faltantes):
-    indicadores = pd.read_csv(INDICADORES).set_index("id") if INDICADORES.is_file() else None
+    indicadores = pd.read_csv(INDICADORES) if INDICADORES.is_file() else None
     marcadores = [(m.group(0), *separar_decimales(m.group(1))) for m in MARCADOR.finditer(borrador)]
     llamadas = {}
     for _, expr, _ in marcadores:
@@ -145,10 +146,24 @@ def resolver(borrador, permitir_faltantes):
                 reemplazos[texto] = expr[4:].strip()
                 constantes.append(expr[4:].strip())
                 continue
-            if expr.startswith("enaho."):
+            if expr.startswith("enaho.") or expr.startswith("enaho:"):
                 if indicadores is None:
                     raise FileNotFoundError("falta salidas/indicadores.csv: corre la skill limpiando-enaho")
-                fila = indicadores.loc[expr.removeprefix("enaho.")]
+                resto = expr.removeprefix("enaho.").removeprefix("enaho:")
+                if ":" in resto:
+                    id_ind, anio_str = resto.split(":", 1)
+                    anio_sel = int(anio_str.strip())
+                else:
+                    id_ind, anio_sel = resto, 2024
+
+                if "anio" in indicadores.columns:
+                    sub_ind = indicadores[(indicadores["anio"] == anio_sel) & (indicadores["id"] == id_ind)]
+                    if sub_ind.empty:
+                        raise KeyError(f"no se encontró el id {id_ind!r} para el año {anio_sel} en indicadores.csv")
+                    fila = sub_ind.iloc[0]
+                else:
+                    fila = indicadores.set_index("id").loc[id_ind]
+
                 valor = formatear(float(fila["valor"]), decimales)
                 origen = f"`{expr}`: {fila['indicador']}, {fila['grupo']} ({fila['unidad']})"
                 fuente = f"salidas/indicadores.csv; ponderador {fila['ponderador']}; n = {int(fila['n_muestral']):,}"

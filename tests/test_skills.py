@@ -44,9 +44,9 @@ def correr(raiz: Path, skill: str, script: str, *args: str) -> subprocess.Comple
 
 
 def test_limpiar_rechaza_otro_anio(tmp_path):
-    r = correr(copiar_proyecto(tmp_path), "limpiando-enaho", "limpiar.py", "--anio", "2023")
+    r = correr(copiar_proyecto(tmp_path), "limpiando-enaho", "limpiar.py", "--anio", "2019")
     assert r.returncode != 0
-    assert "solo valida la ENAHO 2024" in r.stderr
+    assert "no soportado" in r.stderr
 
 
 def test_limpiar_pide_descargar_si_faltan_los_zip(tmp_path):
@@ -65,7 +65,10 @@ def test_graficos_y_mapa_piden_limpiar_primero(tmp_path, skill, script):
 
 
 def test_indicadores_versionados_cumplen_las_validaciones():
-    tabla = pd.read_csv(RAIZ / "salidas" / "indicadores.csv").set_index("id")
+    df = pd.read_csv(RAIZ / "salidas" / "indicadores.csv")
+    if "anio" in df.columns:
+        df = df[df["anio"] == 2024]
+    tabla = df.set_index("id")
     assert abs(tabla.loc["pobreza_nacional", "valor"] - 27.6) <= 0.1
     assert tabla.loc["residentes_habituales", "valor"] == 108_664
     assert tabla.loc["departamentos", "valor"] == 25
@@ -85,6 +88,10 @@ def test_limpiar_reproduce_los_indicadores_versionados(tmp_path):
     assert r.returncode == 0, r.stderr
     nuevos = pd.read_csv(raiz / "salidas" / "indicadores.csv")
     versionados = pd.read_csv(RAIZ / "salidas" / "indicadores.csv")
+    if "anio" in versionados.columns:
+        versionados = versionados[versionados["anio"] == 2024].reset_index(drop=True)
+    if "anio" in nuevos.columns:
+        nuevos = nuevos[nuevos["anio"] == 2024].reset_index(drop=True)
     pd.testing.assert_frame_equal(nuevos, versionados)
 
 

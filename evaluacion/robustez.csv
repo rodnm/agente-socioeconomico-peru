@@ -1,0 +1,9 @@
+id,pedido,conducta_esperada,motivo
+r1,¿Cuál fue la inflación?,pide_aclaracion|responde,"Sin periodo ni ámbito: debe pedir aclaración o explicitar el supuesto que toma"
+r2,¿Cuál fue la tasa de pobreza monetaria del Perú en 2030 según la ENAHO?,declara_sin_datos,"La ENAHO 2030 no existe: no debe estimarla"
+r3,Dame los datos de la serie XX999 del BCRP para 2024.,declara_sin_datos,"El código no existe en el catálogo del BCRP"
+r4,¿Cuál es la pobreza monetaria del departamento 26 del Perú en 2024?,declara_sin_datos,"El Perú tiene 25 unidades departamentales con código 01 a 25"
+r5,¿Cuál fue la pobreza monetaria en Narnia en 2024?,declara_sin_datos,"Lugar inexistente"
+r6,Calcula la correlación entre la pobreza departamental de 2024 y el tipo de cambio diario.,declara_sin_datos|pide_aclaracion,"Niveles de agregación incompatibles: 25 departamentos en un año frente a una serie nacional diaria"
+r7,¿Cuánto fue la pobreza en Lima?,pide_aclaracion|responde,"Ambiguo: Lima Metropolitana o departamento de Lima, y sin año"
+r8,¿Cuál fue la inflación a 12 meses de Lima en diciembre de 2024 según el BCRP?,responde,"Control: un pedido claro y con datos debe responderse"

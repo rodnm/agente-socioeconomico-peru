@@ -114,3 +114,60 @@ def test_los_recordatorios_del_sistema_siguen_fuera(exportar):
                {"type": "user", "message": {"content": "continua"}}]
     md = exportar.a_markdown(eventos, "Sesión")
     assert md.count(". Pedido") == 1 and "Contexto interno" not in md
+
+
+def paso(indice, tipo, fuente="MODEL", **campos):
+    return {"step_index": indice, "source": fuente, "type": tipo, "status": "DONE",
+            "created_at": f"2026-11-05T18:27:{indice:02d}Z", **campos}
+
+
+ANTIGRAVITY = [
+    paso(0, "USER_INPUT", "USER_EXPLICIT", content=(
+        "<USER_REQUEST>\nEjecuta la fase 0 del plan.\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\n"
+        "The current local time is: 2026-11-05T13:27:00-05:00.\n</ADDITIONAL_METADATA>")),
+    paso(1, "PLANNER_RESPONSE", thinking="Pienso en privado.", tool_calls=[
+        {"name": "run_command", "args": {"CommandLine": r"uv run pytest C:\Users\Persona\repo\tests -q"}},
+        {"name": "call_mcp_tool", "args": {"ServerName": "engram", "ToolName": "mem_save", "Arguments": {}}}]),
+    paso(2, "GENERIC", content="Created At: 2026-11-05T13:27:02-05:00\n192 passed; revisado por apz99"),
+    paso(3, "SYSTEM_MESSAGE", "SYSTEM", content=(
+        "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n<SYSTEM_MESSAGE>\n[Message] aviso"
+        "\n</SYSTEM_MESSAGE>")),
+    paso(4, "CHECKPOINT", "SYSTEM", content="# Resuming from a compaction\n\nResumen de lo anterior."),
+    paso(5, "PLANNER_RESPONSE", content="Fase 0 terminada."),
+]
+
+
+def exportar_antigravity(tmp_path, *opciones):
+    """Escribe la sesión en dos fragmentos que cortan un registro a la mitad, como lo hace Antigravity."""
+    sesion = tmp_path / "d5f5693e"
+    fragmentos = sesion / ".system_generated" / "logs" / "chunks" / "transcript_full"
+    fragmentos.mkdir(parents=True)
+    texto = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in ANTIGRAVITY)
+    corte = texto.index("192 passed")
+    (fragmentos / "00000000.jsonl").write_text(texto[:corte], encoding="utf-8")
+    (fragmentos / "00000001.jsonl").write_text(texto[corte:], encoding="utf-8")
+    destino = tmp_path / "gemini.md"
+    r = subprocess.run([sys.executable, str(SCRIPT), str(sesion), str(destino), *opciones],
+                       capture_output=True, text=True, encoding="utf-8")
+    return r, destino
+
+
+def test_una_sesion_de_antigravity_se_exporta_desde_su_carpeta(tmp_path):
+    r, destino = exportar_antigravity(tmp_path, "--ocultar", "apz99")
+    assert r.returncode == 0, r.stderr
+    assert "6 registros exportados" in r.stdout
+    md = destino.read_text(encoding="utf-8")
+    assert "## 1. Pedido · 2026-11-05 18:27:00 UTC" in md and "Ejecuta la fase 0 del plan." in md
+    assert "USER_REQUEST" not in md and "ADDITIONAL_METADATA" not in md
+    assert "**Gemini:**" in md and "Fase 0 terminada." in md and "**Claude:**" not in md
+    assert "**Herramienta:** `run_command`" in md and "192 passed" in md  # el registro cortado se unió
+    assert "Servidores MCP: `engram` · Skills: ninguno · 2 llamadas" in md
+    assert "1. run_command `uv run pytest ~\\repo\\tests -q`" in md and "2. MCP `engram.mem_save`" in md
+    assert "Persona" not in md and "apz99" not in md and "Pienso en privado" not in md
+
+
+def test_antigravity_pliega_las_compactaciones_y_los_mensajes_del_sistema(tmp_path):
+    md = exportar_antigravity(tmp_path)[1].read_text(encoding="utf-8")
+    assert md.count(". Pedido") == 1
+    assert "<summary>Resumen automático de la parte anterior de la sesión (Antigravity compactó el contexto)" in md
+    assert "<summary>Mensaje del sistema de Antigravity</summary>" in md

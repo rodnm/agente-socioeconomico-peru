@@ -76,7 +76,7 @@ Están en `.claude/skills/`. Cada una tiene un `SKILL.md` que Claude Code carga 
 |---|---|
 | **`limpiando-enaho`** | Lee los módulos 34 (sumaria) y 02 (miembros) de 2020 a 2024 con las llaves como texto, filtra a los residentes habituales (`((p204==1)&(p205==2))\|((p204==2)&(p206==1))`), une con `merge(..., validate="m:1")` y define `urbano = estrato <= 5` y `pobre = pobreza <= 2`. Pondera por hogar (`factor07 × mieperho`) para las cifras oficiales nacionales, de área y departamentales, y por persona (`facpob07`) para sexo y edad. Valida contra metas oficiales del INEI (Informe Técnico 2025), escribe `salidas/validacion.txt` y genera `salidas/indicadores.csv` con cobertura multianual (columna `anio`). |
 | **`graficando-enaho`** | Grafica la pobreza por área, sexo, edad o departamento, y la serie temporal de evolución 2020-2024 (`figuras/pobreza_serie_2020_2024.png`) con títulos informativos, unidad, periodo y fuente. Si falta la base procesada o los indicadores, corre `limpiando-enaho`. |
-| **`mapeando-enaho`** | Hace los mapas departamental (25 departamentos) y de ámbitos territoriales (26 ámbitos con Lima desagregada) uniendo `ubigeo[:2]` con `FIRST_IDDP` sobre límites oficiales del IGN. Compara cada departamento con el informe técnico del INEI (Cuadro III.1) en `salidas/mapa_vs_referencia.csv`; Lima (departamento 15) figura como "sin cifra publicada por el INEI", porque el INEI la publica desagregada. |
+| **`mapeando-enaho`** | Hace los mapas departamental (25 departamentos) y de ámbitos territoriales (26 ámbitos con Lima desagregada) uniendo `ubigeo[:2]` con `FIRST_IDDP` sobre límites oficiales del IGN. Compara cada departamento con el informe técnico del INEI (Cuadro III.1) en `salidas/mapa_vs_referencia.csv`; Lima (departamento 15) figura como "sin cifra publicada por el INEI", porque el INEI la publica desagregada. Los 26 ámbitos, con Lima Metropolitana y Lima provincias, se comparan con su intervalo de confianza en `salidas/ambitos_vs_referencia.csv`. |
 | `descargando-enaho` | Baja los zip de microdatos del INEI a `datos/`. |
 | ★ `informando-peru` | Arma el informe con marcadores, tabla de trazabilidad y referencias (ver la sección 2). |
 | ★ `verificando-consistencia` | Contrasta las herramientas entre sí y escribe `salidas/consistencia.md` con OK, DIFERENCIA, FALLA o NO VERIFICABLE. Compara la pobreza con dos ponderadores, el mapa con los indicadores, la inflación a 12 meses recalculada desde el índice del IPC con la publicada, `resumen` con `serie` y cada cifra del informe con su fuente. |
@@ -158,7 +158,7 @@ uv run pytest tests                   # robustez, skills, informe, consistencia,
 # Informe, verificación y dashboard
 uv run .claude/skills/informando-peru/scripts/armar_informe.py              # informes/borrador.md → informe_final.md
 uv run .claude/skills/verificando-consistencia/scripts/verificar.py         # salidas/consistencia.md
-uv run streamlit run dashboard/app.py
+uv run streamlit run dashboard/app.py                                        # tema y paleta en .streamlit/config.toml
 
 # Evaluación (cada pregunta es una sesión nueva de claude -p)
 uv run evaluacion/verdades.py                                               # respuestas esperadas del BCRP, sin el MCP
@@ -255,7 +255,7 @@ Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaro
 | Skill para generar informes | `.claude/skills/informando-peru/` |
 | Segundo MCP con otra fuente oficial | servidor `sbs` en `.mcp.json` |
 | Detectar inconsistencias entre herramientas | `.claude/skills/verificando-consistencia/` → `salidas/consistencia.md` |
-| Dashboard | `dashboard/app.py` (Streamlit) |
+| Dashboard | `dashboard/app.py` (Streamlit): pobreza 2020-2024 con mapa y ranking de 26 ámbitos, contraste con el Cuadro III.1 del INEI, series del BCRP, evaluación y consistencia |
 | Pruebas de robustez | `tests/test_robustez_mcp.py` y `evaluacion/robustez.csv` |
 | Calidad al desactivar herramientas | modos `memoria`, `solo-mcp`, `solo-skills` y `sin-propia` de `evaluacion/evaluar.py` → `evaluacion/ablacion.md` |
 | Informes con tablas, gráficos y referencias | `armar_informe.py` agrega la trazabilidad y las referencias |
@@ -281,7 +281,7 @@ El proyecto ya cubre el BCRP de 2020 a 2024, la morosidad de la SBS a diciembre 
 ├── referencias/              cifras oficiales del INEI y límites del IGN, con su procedencia
 ├── salidas/  figuras/  mapas/  informes/
 ├── evaluacion/               preguntas, verdades, arnés, resultados y análisis
-├── dashboard/                app.py y logica.py
+├── dashboard/                app.py y logica.py; su tema claro está en .streamlit/config.toml
 ├── scripts/                  estilo_graficos.py, preparar_limites.py y exportar_evidencias.py
 └── evidencias_ia/
 ```

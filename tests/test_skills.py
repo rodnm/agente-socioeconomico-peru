@@ -121,6 +121,9 @@ def test_cadena_completa_limpiar_graficar_mapear(tmp_path):
     assert len(comparacion) == 25 and {"07", "15"} <= set(comparacion.index)  # Lima y Callao por separado
     assert comparacion.drop("15")["dentro_de_tolerancia"].astype(bool).all()
     assert comparacion.loc["15", "observacion"] == "sin cifra publicada por el INEI"
+    ambitos = pd.read_csv(raiz / "salidas" / "ambitos_vs_referencia.csv", dtype={"codigo": str}).set_index("codigo")
+    assert len(ambitos) == 26 and {"1501", "15_resto"} <= set(ambitos.index)
+    assert ambitos["dentro_de_tolerancia"].all()
 
 
 # --- Gráficos y mapas revisados sin microdatos: una base sintética reproduce las tasas publicadas por el INEI ---
@@ -361,3 +364,51 @@ def test_comparacion_declara_que_lima_no_tiene_cifra_del_inei(tmp_path, monkeypa
     assert tabla.loc["15", "observacion"] == "sin cifra publicada por el INEI"
     assert pd.isna(tabla.loc["15", "referencia_inei"]) and pd.isna(tabla.loc["15", "diferencia"])
     assert tabla.drop("15")["dentro_de_tolerancia"].astype(bool).all()
+
+
+def mapa_de_ambitos(desvio: dict[str, float] | None = None) -> pd.DataFrame:
+    """Los 26 ámbitos como los deja unir_ambitos_con_limites, cada uno a 0.04 puntos de la cifra del INEI salvo los
+    desvíos dados; los nombres en mayúsculas, como en la capa del IGN."""
+    ref = referencia_inei()
+    tasas = ref["valor"] + 0.04 + ref["ccdd"].map(desvio or {}).fillna(0)
+    return pd.DataFrame({"codigo": ref["ccdd"], "nombre": ref["ambito"].str.upper(), "pobreza_pct": tasas})
+
+
+def test_contraste_por_ambitos_separa_lima_y_trae_el_intervalo_del_inei(tmp_path, monkeypatch, mapear):
+    monkeypatch.setattr(mapear, "CONTRASTE_AMBITOS", tmp_path / "ambitos_vs_referencia.csv")
+
+    mapear.comprobar_ambitos(mapa_de_ambitos())
+    tabla = pd.read_csv(tmp_path / "ambitos_vs_referencia.csv", dtype={"codigo": str})
+
+    assert tabla["codigo"].tolist() == sorted(referencia_inei()["ccdd"])  # 26, en orden de código
+    assert len(tabla) == 26 and "15" not in tabla["codigo"].tolist()
+    tabla = tabla.set_index("codigo")
+    assert tabla.loc["1501", ["ambito", "referencia_inei", "ic_inf", "ic_sup", "cv"]].tolist() == [
+        "Lima Metropolitana", 27.6, 25.0, 30.1, 4.7]
+    assert tabla.loc["15_resto", ["ambito", "referencia_inei", "ic_inf", "ic_sup"]].tolist() == [
+        "Lima provincias", 21.7, 18.3, 25.1]
+    assert tabla.loc["1501", "pobreza_pct"] == pytest.approx(27.64)
+    assert tabla.loc["02", "ambito"] == "Áncash"  # el nombre del INEI, con tilde, no el de la capa
+    assert tabla["diferencia"].eq(0.04).all() and tabla["dentro_de_tolerancia"].all()
+    assert sorted(tabla.index[tabla["referencial"]]) == ["11", "17", "18"]  # CV mayor que 15 %
+
+
+def test_contraste_por_ambitos_se_detiene_si_un_ambito_se_aleja_del_inei(tmp_path, monkeypatch, mapear):
+    monkeypatch.setattr(mapear, "CONTRASTE_AMBITOS", tmp_path / "ambitos_vs_referencia.csv")
+
+    with pytest.raises(SystemExit, match="1501"):
+        mapear.comprobar_ambitos(mapa_de_ambitos({"1501": 0.5}))
+    tabla = pd.read_csv(tmp_path / "ambitos_vs_referencia.csv", dtype={"codigo": str}).set_index("codigo")
+    assert not tabla.loc["1501", "dentro_de_tolerancia"]  # la tabla queda escrita para revisarla
+    assert tabla.drop("1501")["dentro_de_tolerancia"].all()
+
+
+def test_contraste_por_ambitos_se_detiene_si_un_ambito_no_tiene_cifra_del_inei(tmp_path, monkeypatch, mapear):
+    ref = pd.read_csv(REFERENCIA_INEI, dtype={"ccdd": str})
+    ref[ref["ccdd"] != "15_resto"].to_csv(tmp_path / "inei.csv", index=False)
+    monkeypatch.setattr(mapear, "REFERENCIA", tmp_path / "inei.csv")
+    monkeypatch.setattr(mapear, "CONTRASTE_AMBITOS", tmp_path / "ambitos_vs_referencia.csv")
+
+    with pytest.raises(SystemExit, match="15_resto"):
+        mapear.comprobar_ambitos(mapa_de_ambitos())
+    assert not (tmp_path / "ambitos_vs_referencia.csv").exists()

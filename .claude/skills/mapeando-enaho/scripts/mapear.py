@@ -33,6 +33,7 @@ REFERENCIA = RAIZ / "referencias" / "inei_pobreza_2024.csv"
 DESTINO_DEP = RAIZ / "mapas" / "pobreza_departamento.png"
 DESTINO_AMBITOS = RAIZ / "mapas" / "pobreza_ambitos.png"
 COMPARACION = RAIZ / "salidas" / "mapa_vs_referencia.csv"
+CONTRASTE_AMBITOS = RAIZ / "salidas" / "ambitos_vs_referencia.csv"
 
 LLAVES_HOGAR = ["conglome", "vivienda", "hogar"]
 DEPARTAMENTOS = 25
@@ -130,6 +131,30 @@ def comprobar_referencia(mapa: gpd.GeoDataFrame) -> None:
     alejados = diferencia[diferencia > TOLERANCIA]
     if not alejados.empty:
         sys.exit(f"Estos departamentos difieren más de {TOLERANCIA} puntos de la referencia del INEI: {alejados.round(2).to_dict()}.")
+
+
+def comprobar_ambitos(mapa: gpd.GeoDataFrame) -> None:
+    """Contrasta los 26 ámbitos con el Cuadro III.1 del INEI, que publica Lima Metropolitana (1501) y Lima provincias
+    por separado, y deja en salidas/ la tabla con el intervalo de confianza al 95 % y el coeficiente de variación
+    publicados. Un ámbito sin cifra del INEI detiene el proceso antes de escribir; uno fuera de la tolerancia, después,
+    para poder revisar la tabla."""
+    ref = pd.read_csv(REFERENCIA, dtype={"ccdd": str}).dropna(subset=["ccdd"]).set_index("ccdd")
+    calculada = mapa.set_index("codigo")["pobreza_pct"].sort_index()
+    faltan = sorted(set(calculada.index) - set(ref.index))
+    if faltan:
+        sys.exit(f"La tabla del INEI ({REFERENCIA.name}) no tiene cifra para estos ámbitos: {faltan}.")
+    ref = ref.loc[calculada.index]
+    diferencia = (calculada - ref["valor"]).abs()
+    marcados = {codigo for codigo, _ in referenciales()}
+    tabla = pd.DataFrame({"ambito": ref["ambito"], "pobreza_pct": calculada.round(2), "referencia_inei": ref["valor"],
+                          "ic_inf": ref["ic_inf"], "ic_sup": ref["ic_sup"], "cv": ref["cv"],
+                          "referencial": calculada.index.isin(list(marcados)), "diferencia": diferencia.round(2)})
+    tabla["dentro_de_tolerancia"] = tabla["diferencia"] <= TOLERANCIA
+    CONTRASTE_AMBITOS.parent.mkdir(exist_ok=True)
+    tabla.rename_axis("codigo").to_csv(CONTRASTE_AMBITOS, encoding="utf-8")
+    alejados = diferencia[diferencia > TOLERANCIA]
+    if not alejados.empty:
+        sys.exit(f"Estos ámbitos difieren más de {TOLERANCIA} puntos de la referencia del INEI: {alejados.round(2).to_dict()}.")
 
 
 def referenciales() -> list[tuple[str, str]]:
@@ -273,6 +298,7 @@ def main() -> None:
 
     # 2. Mapa por ámbitos territoriales (26 ámbitos, Lima desagregada), el del análisis
     mapa_ambitos = unir_ambitos_con_limites(pobreza_por_ambitos(df_base), gpd.read_file(GEOJSON_AMBITOS))
+    comprobar_ambitos(mapa_ambitos)
     dibujar_ambitos(mapa_ambitos)
     print(f"{DESTINO_AMBITOS.relative_to(RAIZ).as_posix()} ({AMBITOS} ámbitos territoriales con dato)")
 

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import shutil
 import sys
+import tomllib
 import urllib.request
 from pathlib import Path
 
@@ -296,6 +297,40 @@ def test_cargar_geojson_lee_el_archivo_local(tmp_path, sin_red):
     geo, aviso = logica.cargar_geojson(tmp_path / "ambitos.geojson")
 
     assert aviso is None and len(geo["features"]) == 26
+
+
+def area_con_signo(anillo: list) -> float:
+    """Positiva si el anillo gira en sentido antihorario (fórmula del área de Gauss)."""
+    return sum(x0 * y1 - x1 * y0 for (x0, y0, *_), (x1, y1, *_) in zip(anillo, anillo[1:]))
+
+
+def poligonos(geometria: dict) -> list:
+    return [geometria["coordinates"]] if geometria["type"] == "Polygon" else geometria["coordinates"]
+
+
+def test_cargar_geojson_deja_los_anillos_exteriores_en_sentido_horario_para_plotly():
+    """d3-geo (Plotly) lee un anillo exterior antihorario como el globo menos el polígono: así el mapa mostraba solo
+    Ucayali sobre un fondo de su color. El archivo versionado sigue en el sentido de RFC 7946."""
+    crudo = json.loads(GEOJSON_AMBITOS.read_text(encoding="utf-8"))
+    geo, aviso = logica.cargar_geojson()
+
+    assert aviso is None
+    assert any(area_con_signo(p[0]) > 0 for f in crudo["features"] for p in poligonos(f["geometry"]))
+    for f in geo["features"]:
+        for exterior, *huecos in poligonos(f["geometry"]):
+            assert area_con_signo(exterior) < 0, f["properties"]["codigo"]
+            assert all(area_con_signo(h) > 0 for h in huecos), f["properties"]["codigo"]
+    assert json.loads(GEOJSON_AMBITOS.read_text(encoding="utf-8")) == crudo  # el archivo no cambia
+
+
+def test_el_tema_claro_fijo_usa_la_paleta_tierra_de_las_figuras():
+    tema = tomllib.loads((RAIZ / ".streamlit" / "config.toml").read_text(encoding="utf-8"))["theme"]
+
+    assert tema["base"] == "light"
+    assert (tema["primaryColor"], tema["backgroundColor"], tema["textColor"]) == (logica.ACENTO, logica.FONDO,
+                                                                                 logica.TINTA)
+    assert logica.BARRA == "#C46A35" and logica.REFERENCIA == logica.TINTA
+    assert [color for _, color, _ in logica.CLASES] == ["#F6DDB8", "#EDB27A", "#DB8448", "#B95A26", "#7F3212"]
 
 
 def test_el_dashboard_lee_los_limites_del_ign_y_no_la_copia_del_curso():

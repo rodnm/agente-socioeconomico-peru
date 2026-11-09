@@ -46,9 +46,16 @@ KPIS = {"pobreza_nacional": "Pobreza monetaria nacional", "pobreza_area_urbana":
         "residentes_habituales": "Residentes en la muestra"}
 ESTADOS = ["OK", "DIFERENCIA", "FALLA", "NO VERIFICABLE"]
 
-# Un solo tono, de claro a oscuro: el mismo azul del mapa de mapeando-enaho
-AZULES = ["#cde2fb", "#6da7ec", "#256abf", "#0d366b"]
-BARRA, REFERENCIA = "#256abf", "#52514e"
+# Paleta tierra del sistema visual, la misma de .streamlit/config.toml: los datos van de arena a terracota según la
+# tasa y la interfaz usa neutros cálidos, para que el color solo signifique datos. Contraste revisado con WCAG: el texto
+# llega a 4.5:1 y las barras y marcas a 3:1 sobre blanco.
+TINTA, TEXTO_SECUNDARIO, TEXTO_ATENUADO = "#221D19", "#4A423B", "#6A6058"
+FONDO, SUPERFICIE, BORDE, ACENTO = "#F6F3EE", "#FFFFFF", "#E4DDD3", "#9A4317"
+BARRA, BARRA_LIMA, REPLICA, INTERVALO = "#C46A35", "#6E2A0F", "#C0562A", "#F2D6BC"
+REFERENCIA = TINTA
+# Clases de pobreza del mapa y de su leyenda: (límite superior sin incluir, color, etiqueta)
+CLASES = [(15, "#F6DDB8", "< 15 %"), (22, "#EDB27A", "15 a 22 %"), (28, "#DB8448", "22 a 28 %"),
+          (35, "#B95A26", "28 a 35 %"), (float("inf"), "#7F3212", "35 % o más")]
 # Fondo claro y texto oscuro fijo para que la tabla se lea también en modo oscuro; el texto nombra el estado
 COLORES_RESULTADO = {"OK": "#d7f0dd", "acierta": "#d7f0dd", "cumple": "#d7f0dd",
                      "DIFERENCIA": "#fdf0c4", "no sabe": "#fdf0c4",
@@ -106,11 +113,38 @@ def _relativa(ruta: Path) -> str:
         return ruta.as_posix()
 
 
+def _area_con_signo(anillo: list) -> float:
+    """Positiva si el anillo gira en sentido antihorario (fórmula del área de Gauss)."""
+    return sum(x0 * y1 - x1 * y0 for (x0, y0, *_), (x1, y1, *_) in zip(anillo, anillo[1:]))
+
+
+def _en_sentido(anillo: list, horario: bool) -> list:
+    return anillo[::-1] if (_area_con_signo(anillo) > 0) == horario else anillo
+
+
+def orientar_para_plotly(geo: dict) -> dict:
+    """Una copia con los anillos exteriores en sentido horario y los huecos en antihorario, como los lee d3-geo, el
+    motor de mapas de Plotly. Con el sentido de RFC 7946, el del archivo, d3-geo dibuja cada ámbito como el globo menos
+    el polígono y el último en dibujarse tapa el resto."""
+    def poligono(anillos: list) -> list:
+        exterior, *huecos = anillos
+        return [_en_sentido(exterior, horario=True)] + [_en_sentido(h, horario=False) for h in huecos]
+
+    def geometria(g: dict) -> dict:
+        if g["type"] == "Polygon":
+            return {**g, "coordinates": poligono(g["coordinates"])}
+        if g["type"] == "MultiPolygon":
+            return {**g, "coordinates": [poligono(p) for p in g["coordinates"]]}
+        return g
+
+    return {**geo, "features": [{**f, "geometry": geometria(f["geometry"])} for f in geo["features"]]}
+
+
 def cargar_geojson(ruta: Path = GEOJSON_AMBITOS) -> tuple[dict | None, str | None]:
-    """Los límites del IGN versionados en referencias/. Nunca descarga nada ni lanza error: si el archivo falta o no
-    se puede leer, devuelve el aviso para mostrar y el resto del tablero sigue."""
+    """Los límites del IGN versionados en referencias/, orientados para Plotly. Nunca descarga nada ni lanza error: si
+    el archivo falta o no se puede leer, devuelve el aviso para mostrar y el resto del tablero sigue."""
     try:
-        return json.loads(ruta.read_text(encoding="utf-8")), None
+        return orientar_para_plotly(json.loads(ruta.read_text(encoding="utf-8"))), None
     except FileNotFoundError:
         return None, (f"Falta `{_relativa(ruta)}`, con los límites oficiales del IGN. Se genera con "
                       f"`{PREPARAR_LIMITES}`. El mapa se omite.")
@@ -214,7 +248,8 @@ def unir_geometria(geo: dict, ambitos: pd.DataFrame) -> pd.DataFrame:
 
 def figura_mapa(unida: pd.DataFrame, geo: dict) -> go.Figure:
     figura = px.choropleth(unida, geojson=geo, locations="codigo", featureidkey="properties.codigo", color="pobreza",
-                           color_continuous_scale=AZULES, range_color=(0, unida["pobreza"].max()),
+                           color_continuous_scale=[color for _, color, _ in CLASES],
+                           range_color=(0, unida["pobreza"].max()),
                            hover_name="nombre", hover_data={"codigo": True, "pobreza": ":.1f"},
                            labels={"pobreza": "% de personas", "codigo": "Código"})
     figura.update_geos(fitbounds="locations", visible=False)

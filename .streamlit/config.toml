@@ -1,0 +1,17 @@
+# Tema claro fijo, para que el mapa, las barras y las tablas se lean igual en cualquier equipo. Son los colores de la
+# paleta tierra de dashboard/logica.py: neutros cálidos en la interfaz y el acento terracota en enlaces y controles.
+[theme]
+base = "light"
+primaryColor = "#9A4317"
+backgroundColor = "#F6F3EE"
+secondaryBackgroundColor = "#EFE9E1"
+textColor = "#221D19"
+linkColor = "#9A4317"
+borderColor = "#E4DDD3"
+dataframeHeaderBackgroundColor = "#FAF7F2"
+codeBackgroundColor = "#EFE9E1"
+baseRadius = "0.5rem"
+# Fuentes de Google Fonts, cada una con su respaldo del sistema por si el servicio no responde
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap, sans-serif"
+headingFont = "'Space Grotesk':https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&display=swap, sans-serif"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap, monospace"

@@ -359,11 +359,11 @@ def _cifras(figura: go.Figure, y: list, valores: pd.Series, tope: float) -> None
 
 def _linea_nacional(figura: go.Figure, valor: float) -> None:
     """La referencia nacional: línea punteada en tinta sobre un borde blanco, para que se lea sobre las barras
-    oscuras."""
+    oscuras. El rótulo va en el margen superior, sobre el área de barras, para no cruzar la primera."""
     figura.add_vline(x=valor, line_color=SUPERFICIE, line_width=4.5, layer="above")
     figura.add_vline(x=valor, line_dash="dash", line_color=REFERENCIA, line_width=1.5, layer="above",
                      annotation_text=f"Nacional: {valor:.1f} %", annotation_position="top right", annotation_xshift=4,
-                     annotation_font_color=TINTA)
+                     annotation_yanchor="bottom", annotation_font_color=TINTA)
 
 
 def _encuadre(geo: dict, margen: float = 0.3) -> tuple[list[float], list[float]]:

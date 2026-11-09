@@ -410,6 +410,19 @@ def test_las_barras_de_pobreza_usan_la_escala_fija_y_la_linea_nacional_con_borde
     assert figura.layout.annotations[0].text == "Nacional: 27.6 %"
 
 
+def test_rotulo_nacional_va_sobre_el_area_de_barras_y_no_cruza_la_primera():
+    # En "Por edad" la primera barra (0 a 14 años, 37.5 %) pasa la línea: un rótulo dentro del área la cruzaba
+    indicadores = logica.cargar_indicadores()
+    edad = logica.filas(indicadores, "pobreza_edad_")
+    ambitos = pd.DataFrame({"codigo": ["09", "15_resto"], "nombre": ["Huancavelica", "Lima provincias"],
+                            "pobreza": [40.0, 21.7]})
+
+    for figura in (logica.figura_barras(edad, "valor", 27.6), logica.figura_ranking(ambitos, 27.6)):
+        rotulo = figura.layout.annotations[0]
+        assert (rotulo.yref, rotulo.y, rotulo.yanchor) == ("y domain", 1, "bottom")
+        assert (rotulo.xanchor, rotulo.x) == ("left", 27.6)
+
+
 def test_cargar_geojson_sin_archivo_indica_preparar_limites_sin_usar_la_red(tmp_path, sin_red):
     geo, aviso = logica.cargar_geojson(tmp_path / "no.geojson")
 

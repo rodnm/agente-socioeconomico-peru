@@ -158,7 +158,7 @@ uv run pytest tests                   # robustez, skills, informe, consistencia,
 # Informe, verificación y dashboard
 uv run .claude/skills/informando-peru/scripts/armar_informe.py              # informes/borrador.md → informe_final.md
 uv run .claude/skills/verificando-consistencia/scripts/verificar.py         # salidas/consistencia.md
-uv run streamlit run dashboard/app.py
+uv run streamlit run dashboard/app.py                                        # tema y paleta en .streamlit/config.toml
 
 # Evaluación (cada pregunta es una sesión nueva de claude -p)
 uv run evaluacion/verdades.py                                               # respuestas esperadas del BCRP, sin el MCP
@@ -255,7 +255,7 @@ Su índice es [`evidencias_ia/README.md`](evidencias_ia/README.md). Se exportaro
 | Skill para generar informes | `.claude/skills/informando-peru/` |
 | Segundo MCP con otra fuente oficial | servidor `sbs` en `.mcp.json` |
 | Detectar inconsistencias entre herramientas | `.claude/skills/verificando-consistencia/` → `salidas/consistencia.md` |
-| Dashboard | `dashboard/app.py` (Streamlit) |
+| Dashboard | `dashboard/app.py` (Streamlit): pobreza 2020-2024 con mapa y ranking de 26 ámbitos, contraste con el Cuadro III.1 del INEI, series del BCRP, evaluación y consistencia |
 | Pruebas de robustez | `tests/test_robustez_mcp.py` y `evaluacion/robustez.csv` |
 | Calidad al desactivar herramientas | modos `memoria`, `solo-mcp`, `solo-skills` y `sin-propia` de `evaluacion/evaluar.py` → `evaluacion/ablacion.md` |
 | Informes con tablas, gráficos y referencias | `armar_informe.py` agrega la trazabilidad y las referencias |
@@ -281,7 +281,7 @@ El proyecto ya cubre el BCRP de 2020 a 2024, la morosidad de la SBS a diciembre 
 ├── referencias/              cifras oficiales del INEI y límites del IGN, con su procedencia
 ├── salidas/  figuras/  mapas/  informes/
 ├── evaluacion/               preguntas, verdades, arnés, resultados y análisis
-├── dashboard/                app.py y logica.py
+├── dashboard/                app.py y logica.py; su tema claro está en .streamlit/config.toml
 ├── scripts/                  estilo_graficos.py, preparar_limites.py y exportar_evidencias.py
 └── evidencias_ia/
 ```

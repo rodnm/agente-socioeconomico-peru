@@ -1,9 +1,12 @@
 """Datos y figuras del dashboard, aparte de Streamlit para poder probarlos.
 
 Solo lee las salidas versionadas que dejan las herramientas del agente (salidas/ y evaluacion/): ninguna cifra se
-escribe a mano ni se recalcula aquí. Las salidas opcionales que aún no existen se leen como tablas vacías.
+escribe a mano ni se recalcula aquí. Las únicas cuentas son de presentación: la variación de un indicador frente al año
+anterior y los conteos de la leyenda y del contraste. Las salidas opcionales que aún no existen se leen como tablas
+vacías.
 """
 import json
+import unicodedata
 from pathlib import Path
 
 import pandas as pd
@@ -12,7 +15,7 @@ import plotly.graph_objects as go
 
 RAIZ = Path(__file__).resolve().parents[1]
 INDICADORES = RAIZ / "salidas" / "indicadores.csv"
-COMPARACION = RAIZ / "salidas" / "mapa_vs_referencia.csv"
+CONTRASTE = RAIZ / "salidas" / "ambitos_vs_referencia.csv"
 CONSISTENCIA = RAIZ / "salidas" / "consistencia.csv"
 BCRP = RAIZ / "salidas" / "bcrp"
 RESULTADOS = RAIZ / "evaluacion" / "resultados.csv"
@@ -20,6 +23,7 @@ ROBUSTEZ = RAIZ / "evaluacion" / "robustez_resultados.csv"
 # Límites oficiales del IGN (COD-AB, OCHA HDX), versionados; los genera scripts/preparar_limites.py. Nunca se descargan.
 GEOJSON_AMBITOS = RAIZ / "referencias" / "limites_ambitos_ign.geojson"
 PREPARAR_LIMITES = "uv run scripts/preparar_limites.py"
+MAPEAR = "uv run .claude/skills/mapeando-enaho/scripts/mapear.py"
 
 # El análisis territorial usa los 26 ámbitos del Cuadro III.1 del INEI: Lima (15) se desagrega en Lima Metropolitana
 # (provincia 1501) y Lima provincias, cada una con el código de la propiedad `codigo` de la capa de ámbitos. Se eligen
@@ -27,14 +31,20 @@ PREPARAR_LIMITES = "uv run scripts/preparar_limites.py"
 AMBITOS = 26
 LIMA_DESAGREGADA = {"pobreza_lima_metropolitana_provincia": "1501", "pobreza_lima_provincias": "15_resto"}
 LIMA_DEPARTAMENTO = "pobreza_dep_15"
+# Las barras oscuras del ranking: Lima Metropolitana, Lima provincias y el Callao
+LIMA_Y_CALLAO = {"1501", "15_resto", "07"}
+# Una salida sin columna `anio` es de antes de la serie 2020-2024, cuando solo se procesaba 2024
+ANIO_UNICO = 2024
+# mapeando-enaho contrasta la ENAHO 2024 con el informe del INEI sobre 2024, con esta tolerancia en puntos: la réplica
+# de una cifra que el INEI redondea a un decimal
+ANIO_CONTRASTE, TOLERANCIA = 2024, 0.1
 
 COLUMNAS_EVALUACION = ["id", "tipo", "modo", "pregunta", "verdad", "valor", "unidad", "tolerancia", "resultado",
                        "segundos", "turnos", "herramientas", "fuente", "error"]
 COLUMNAS_ROBUSTEZ = ["id", "modo", "pedido", "conducta_esperada", "conducta_observada", "resultado", "segundos"]
 COLUMNAS_CONSISTENCIA = ["fuente", "verificacion", "resultado", "detalle", "explicacion"]
-COLUMNAS_COMPARACION = ["ccdd", "departamento", "pobreza_pct", "referencia_inei", "diferencia",
-                        "dentro_de_tolerancia"]
-SIN_REFERENCIA, NO_APLICA = "sin cifra publicada por el INEI", "no aplica"
+COLUMNAS_CONTRASTE = ["codigo", "ambito", "pobreza_pct", "referencia_inei", "ic_inf", "ic_sup", "cv", "referencial",
+                      "diferencia", "dentro_de_tolerancia"]
 COLUMNAS_BCRP = ["archivo", "periodo", "fecha", "valor", "codigo", "nombre", "fuente"]
 
 # Las configuraciones de evaluacion/evaluar.py, en el orden en que se comparan
@@ -50,17 +60,29 @@ ESTADOS = ["OK", "DIFERENCIA", "FALLA", "NO VERIFICABLE"]
 # tasa y la interfaz usa neutros cálidos, para que el color solo signifique datos. Contraste revisado con WCAG: el texto
 # llega a 4.5:1 y las barras y marcas a 3:1 sobre blanco.
 TINTA, TEXTO_SECUNDARIO, TEXTO_ATENUADO = "#221D19", "#4A423B", "#6A6058"
-FONDO, SUPERFICIE, BORDE, ACENTO = "#F6F3EE", "#FFFFFF", "#E4DDD3", "#9A4317"
+FONDO, SUPERFICIE, BORDE, BORDE_CAMPO, ACENTO = "#F6F3EE", "#FFFFFF", "#E4DDD3", "#9A8F84", "#9A4317"
 BARRA, BARRA_LIMA, REPLICA, INTERVALO = "#C46A35", "#6E2A0F", "#C0562A", "#F2D6BC"
 REFERENCIA = TINTA
 # Clases de pobreza del mapa y de su leyenda: (límite superior sin incluir, color, etiqueta)
 CLASES = [(15, "#F6DDB8", "< 15 %"), (22, "#EDB27A", "15 a 22 %"), (28, "#DB8448", "22 a 28 %"),
           (35, "#B95A26", "28 a 35 %"), (float("inf"), "#7F3212", "35 % o más")]
-# Fondo claro y texto oscuro fijo para que la tabla se lea también en modo oscuro; el texto nombra el estado
-COLORES_RESULTADO = {"OK": "#d7f0dd", "acierta": "#d7f0dd", "cumple": "#d7f0dd",
-                     "DIFERENCIA": "#fdf0c4", "no sabe": "#fdf0c4",
-                     "FALLA": "#f9d5d3", "se equivoca": "#f9d5d3", "no cumple": "#f9d5d3",
-                     "NO VERIFICABLE": "#e8e8e6", "error": "#e8e8e6"}
+# Escala fija de 0 a 50 % en todas las vistas de pobreza, para que se comparen entre sí
+ESCALA = 50
+# El mapa y el ranking van lado a lado con la misma altura
+ALTO_TERRITORIAL = 700
+MARCA_REFERENCIAL = " †"
+NOTA_REFERENCIAL = "† Cifra referencial: el INEI informa un coeficiente de variación mayor que 15 %."
+# Estados de Evaluación, Consistencia y del contraste: ícono y texto, nunca solo color, con fondo claro y texto oscuro
+ESTILOS_ESTADO = {"coincide": ("#E3F1E7", "#1D5B33", "✓"), "diferencia": ("#FCF0D6", "#6E4500", "!"),
+                  "falla": ("#FBE2DF", "#8A1F17", "✕"), "no verificable": ("#EEEAE4", "#4A423B", "–")}
+ESTADO_DE = {"OK": "coincide", "acierta": "coincide", "cumple": "coincide", "Coincide": "coincide",
+             "DIFERENCIA": "diferencia", "no sabe": "diferencia",
+             "FALLA": "falla", "se equivoca": "falla", "no cumple": "falla", "Fuera de tolerancia": "falla",
+             "NO VERIFICABLE": "no verificable", "error": "no verificable"}
+ICONOS_ESTADO = {"OK": ":material/check_circle:", "DIFERENCIA": ":material/error:", "FALLA": ":material/cancel:",
+                 "NO VERIFICABLE": ":material/remove_circle:"}
+VISTAS_CONTRASTE = {"todos": "Todos", "fuera": "Fuera de tolerancia", "referenciales": "Referenciales"}
+MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 
 
 # ---------- lectura ----------
@@ -80,18 +102,32 @@ def huella(ruta: Path):
     return ruta.stat().st_mtime_ns if ruta.exists() else 0
 
 
+def del_anio(ind: pd.DataFrame, anio: int | None) -> pd.DataFrame:
+    """Los indicadores de un año. Una salida sin columna `anio` es de un solo año y se devuelve completa."""
+    if "anio" in ind.columns and anio is not None:
+        return ind[ind["anio"] == anio].reset_index(drop=True)
+    return ind
+
+
+def anios(ind: pd.DataFrame) -> list[int]:
+    """Los años de la encuesta presentes, en orden."""
+    if "anio" not in ind.columns:
+        return [ANIO_UNICO]
+    return sorted(int(a) for a in ind["anio"].dropna().unique())
+
+
 def cargar_indicadores(ruta: Path = INDICADORES, anio: int | None = 2024) -> pd.DataFrame:
-    """Los indicadores del año dado (2024 por defecto). Una salida anterior sin columna `anio` es de un solo año y se
-    devuelve completa."""
+    """Los indicadores del año dado (2024 por defecto; todos con None)."""
     df = _leer(ruta, ["anio", "id", "indicador", "grupo", "valor", "unidad", "ponderador", "n_muestral", "fuente"],
                dtype={"id": str})
-    if "anio" in df.columns and anio is not None:
-        df = df[df["anio"] == anio].reset_index(drop=True)
-    return df
+    return del_anio(df, anio)
 
 
-def cargar_comparacion(ruta: Path = COMPARACION) -> pd.DataFrame:
-    return _leer(ruta, COLUMNAS_COMPARACION, dtype={"ccdd": str})
+def cargar_contraste(ruta: Path = CONTRASTE) -> pd.DataFrame:
+    tabla = _leer(ruta, COLUMNAS_CONTRASTE, dtype={"codigo": str})
+    for columna in ("referencial", "dentro_de_tolerancia"):
+        tabla[columna] = tabla[columna].astype(str).str.strip().str.lower().eq("true")
+    return tabla
 
 
 def cargar_consistencia(ruta: Path = CONSISTENCIA) -> pd.DataFrame:
@@ -153,31 +189,6 @@ def cargar_geojson(ruta: Path = GEOJSON_AMBITOS) -> tuple[dict | None, str | Non
                       f"`{PREPARAR_LIMITES}`. El mapa se omite.")
 
 
-def tabla_comparacion(comparacion: pd.DataFrame) -> pd.DataFrame:
-    """El contraste del mapa con el Cuadro III.1 del INEI, listo para mostrar: un departamento sin cifra publicada
-    (Lima, 15) lo dice en texto en lugar de quedar vacío, y su diferencia y tolerancia no aplican."""
-    referencia = pd.to_numeric(comparacion["referencia_inei"], errors="coerce")
-    diferencia = pd.to_numeric(comparacion["diferencia"], errors="coerce")
-    dentro = comparacion["dentro_de_tolerancia"].astype(str).str.strip().str.lower().eq("true")
-    con_cifra = referencia.notna()
-    return pd.DataFrame({
-        "ccdd": comparacion["ccdd"], "departamento": comparacion["departamento"],
-        "pobreza_pct": pd.to_numeric(comparacion["pobreza_pct"], errors="coerce"),
-        "referencia_inei": [f"{r:.1f}" if c else SIN_REFERENCIA for r, c in zip(referencia, con_cifra)],
-        "diferencia": [f"{d:.2f}" if c and pd.notna(d) else NO_APLICA for d, c in zip(diferencia, con_cifra)],
-        "dentro_de_tolerancia": [("Sí" if d else "No") if c else NO_APLICA for d, c in zip(dentro, con_cifra)]})
-
-
-def resumen_comparacion(comparacion: pd.DataFrame) -> dict:
-    """Cuántos departamentos tienen cifra del INEI, cuántos de ellos caen dentro de la tolerancia y cuáles no la
-    tienen, como pares (código, nombre)."""
-    con_cifra = pd.to_numeric(comparacion["referencia_inei"], errors="coerce").notna()
-    dentro = comparacion["dentro_de_tolerancia"].astype(str).str.strip().str.lower().eq("true")
-    sin_cifra = comparacion[~con_cifra]
-    return {"con_referencia": int(con_cifra.sum()), "dentro": int((dentro & con_cifra).sum()),
-            "sin_referencia": list(zip(sin_cifra["ccdd"].astype(str), sin_cifra["departamento"].astype(str)))}
-
-
 # ---------- ENAHO ----------
 
 def filas(ind: pd.DataFrame, prefijo: str) -> pd.DataFrame:
@@ -209,18 +220,41 @@ def nacional(ind: pd.DataFrame, ponderador: str) -> float | None:
     return float(fila["valor"].iat[0]) if len(fila) else None
 
 
-def kpis(ind: pd.DataFrame) -> list[dict]:
-    """Las cifras de cabecera, cada una con su id, ponderador, tamaño de muestra y fuente para citarla."""
+def ponderado_por(ponderador: str) -> str:
+    """«factor07 × mieperho (por hogar)» se lee «Ponderado por hogar»."""
+    unidad = ponderador.partition("(")[2].rstrip(")")
+    return f"Ponderado {unidad}" if unidad else f"Ponderado con {ponderador}"
+
+
+def kpis(ind: pd.DataFrame, historia: pd.DataFrame | None = None) -> list[dict]:
+    """Las cifras de cabecera del año de `ind`, cada una con su id, ponderador, tamaño de muestra y fuente para citarla.
+    Con la historia de todos los años, también su serie desde el primer año y, en las tasas, la variación en puntos
+    frente al año anterior que haya."""
+    anio = int(ind["anio"].iat[0]) if "anio" in ind.columns and len(ind) else None
+    con_historia = historia is not None and anio is not None and "anio" in historia.columns
     tarjetas = []
     for clave, etiqueta in KPIS.items():
         fila = ind[ind["id"] == clave]
         if fila.empty:
             continue
         f = fila.iloc[0]
-        valor = f"{f['valor']:.1f} %" if str(f["unidad"]).startswith("%") else _miles(f["valor"])
-        tarjetas.append({"id": clave, "etiqueta": etiqueta, "valor": valor,
-                         "ayuda": f"`{clave}` · {f['unidad']} · ponderado: {f['ponderador']} · "
-                                  f"n muestral {_miles(f['n_muestral'])} · {f['fuente']}"})
+        tasa = str(f["unidad"]).startswith("%")
+        tarjeta = {"id": clave, "etiqueta": etiqueta, "valor": f"{f['valor']:.1f} %" if tasa else _miles(f["valor"]),
+                   "ayuda": f"`{clave}` · {f['unidad']} · ponderado: {f['ponderador']} · "
+                            f"n muestral {_miles(f['n_muestral'])} · {f['fuente']}",
+                   "serie": None, "variacion": None, "detalle": None}
+        if con_historia:
+            serie = historia[(historia["id"] == clave) & (historia["anio"] <= anio)].sort_values("anio")
+            if len(serie) > 1:
+                tarjeta["serie"] = serie["valor"].astype(float).tolist()
+                if tasa:
+                    previo = serie.iloc[-2]
+                    tarjeta["variacion"] = f"{float(f['valor']) - float(previo['valor']):+.1f} pp"
+                    tarjeta["detalle"] = f"frente a {int(previo['anio'])}"
+        if not tasa:
+            hogares = ind.loc[ind["id"] == "hogares", "valor"]
+            tarjeta["variacion"] = f"{_miles(hogares.iat[0])} hogares encuestados" if len(hogares) else None
+        tarjetas.append(tarjeta)
     return tarjetas
 
 
@@ -228,9 +262,28 @@ def _miles(numero: float) -> str:
     return f"{numero:,.0f}".replace(",", " ")
 
 
-def pie_enaho(tabla: pd.DataFrame) -> str:
-    ponderadores = " y ".join(tabla["ponderador"].drop_duplicates())
-    return f"Fuente: INEI, ENAHO 2024. Ponderado con {ponderadores}. Datos: salidas/indicadores.csv (limpiando-enaho)."
+def resumen_pobreza(ind: pd.DataFrame, ambitos: pd.DataFrame, anio: int) -> str:
+    """La frase de entrada de la página, con la tasa nacional y los ámbitos extremos del año."""
+    orden = ambitos.sort_values("pobreza")
+    bajo, alto = orden.iloc[0], orden.iloc[-1]
+    tasa = ind.loc[ind["id"] == "pobreza_nacional", "valor"]
+    texto = f"En {anio}, el {float(tasa.iat[0]):.1f} % de las personas vivía en pobreza monetaria. " if len(tasa) else ""
+    return (texto + f"Entre ámbitos, la tasa va de {bajo['pobreza']:.1f} % en {bajo['nombre']} a "
+                    f"{alto['pobreza']:.1f} % en {alto['nombre']}.")
+
+
+def pie_enaho(ind: pd.DataFrame, anio: int) -> str:
+    """La única nota de fuente de la sección, con el ponderador que trae la salida para cada desglose."""
+    por_ponderador = {}
+    for nombre, prefijo in (("área", "pobreza_area_"), ("ámbito", "pobreza_dep_"), ("sexo", "pobreza_sexo_"),
+                            ("edad", "pobreza_edad_")):
+        ponderador = ind.loc[ind["id"].str.startswith(prefijo), "ponderador"]
+        if len(ponderador):
+            por_ponderador.setdefault(ponderador.iat[0], []).append(nombre)
+    ponderacion = "; ".join(f"{' y '.join(nombres)} con {p}" for p, nombres in por_ponderador.items())
+    return (f"Fuente: INEI, Encuesta Nacional de Hogares (ENAHO) {anio}, módulos 34 y 02, procesados con la skill "
+            f"limpiando-enaho. Ponderación: {ponderacion}. Límites: IGN, publicados en OCHA HDX (COD-AB). "
+            "Datos: `salidas/indicadores.csv`.")
 
 
 def unir_geometria(geo: dict, ambitos: pd.DataFrame) -> pd.DataFrame:
@@ -246,37 +299,195 @@ def unir_geometria(geo: dict, ambitos: pd.DataFrame) -> pd.DataFrame:
     return unida.drop(columns="_merge").sort_values("codigo").reset_index(drop=True)
 
 
+def clase(valor: float) -> int:
+    """La clase del mapa de una tasa: 0 para menos de 15 %, 4 para 35 % o más."""
+    return next(i for i, (tope, _, _) in enumerate(CLASES) if valor < tope)
+
+
+def leyenda_clases(ambitos: pd.DataFrame) -> list[dict]:
+    """Cada clase del mapa con su color, su rango y cuántos ámbitos caen en ella."""
+    cuenta = ambitos["pobreza"].map(clase).value_counts()
+    return [{"color": color, "etiqueta": etiqueta, "ambitos": int(cuenta.get(i, 0))}
+            for i, (_, color, etiqueta) in enumerate(CLASES)]
+
+
+def leyenda_html(leyenda: list[dict]) -> str:
+    muestras = "".join(
+        f'<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:13px;'
+        f'color:{TEXTO_SECUNDARIO}"><span style="width:12px;height:12px;border-radius:2px;background:{c["color"]};'
+        f'box-shadow:inset 0 0 0 1px {BORDE_CAMPO}"></span>{c["etiqueta"]} · {c["ambitos"]} '
+        f'{"ámbito" if c["ambitos"] == 1 else "ámbitos"}</span>' for c in leyenda)
+    return f'<div style="display:flex;flex-wrap:wrap;row-gap:6px">{muestras}</div>'
+
+
+def _tope(valores: pd.Series) -> float:
+    return max(ESCALA, float(valores.max()))
+
+
+def _escala_por_clases(tope: float) -> list:
+    """Escala de colores en escalones: cada clase tiene un solo color entre sus límites, de 0 al tope."""
+    cortes = [0] + [limite for limite, _, _ in CLASES[:-1]] + [tope]
+    escala = []
+    for desde, hasta, (_, color, _) in zip(cortes, cortes[1:], CLASES):
+        escala += [[desde / tope, color], [hasta / tope, color]]
+    return escala
+
+
+def _lienzo(figura: go.Figure, alto: int, **diseno) -> go.Figure:
+    """Lo común a todas las figuras: sin título, que va en la tarjeta; punto decimal y espacio de miles, como el resto
+    del proyecto; fondo transparente sobre la tarjeta y texto en los tonos de la paleta."""
+    figura.update_layout(**{"height": alto, "separators": ". ", "showlegend": False,
+                            "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)",
+                            "font": {"color": TEXTO_SECUNDARIO}, "margin": {"l": 0, "r": 24, "t": 28, "b": 0},
+                            **diseno})
+    return figura
+
+
+def _eje_de_pobreza(figura: go.Figure, tope: float, desde: float = 0, cifras: bool = False) -> None:
+    """El eje de 0 al tope (50 %); con `cifras`, deja a la derecha una columna para el valor de cada barra."""
+    figura.update_xaxes(range=[desde, tope * (1.16 if cifras else 1.06)], tickvals=list(range(0, int(tope) + 1, 10)),
+                        title="% de personas", gridcolor=BORDE, zeroline=False)
+    figura.update_yaxes(title=None, autorange="reversed")
+
+
+def _cifras(figura: go.Figure, y: list, valores: pd.Series, tope: float) -> None:
+    """El valor de cada barra en una columna alineada a la derecha, lejos de la línea nacional que lo taparía."""
+    figura.add_scatter(x=[tope * 1.16] * len(valores), y=y, mode="text", name="cifras", hoverinfo="skip",
+                       text=[f"{v:.1f}" for v in valores], textposition="middle left", cliponaxis=False,
+                       textfont={"color": TINTA})
+
+
+def _linea_nacional(figura: go.Figure, valor: float) -> None:
+    """La referencia nacional: línea punteada en tinta sobre un borde blanco, para que se lea sobre las barras
+    oscuras."""
+    figura.add_vline(x=valor, line_color=SUPERFICIE, line_width=4.5, layer="above")
+    figura.add_vline(x=valor, line_dash="dash", line_color=REFERENCIA, line_width=1.5, layer="above",
+                     annotation_text=f"Nacional: {valor:.1f} %", annotation_position="top right", annotation_xshift=4,
+                     annotation_font_color=TINTA)
+
+
+def _encuadre(geo: dict, margen: float = 0.3) -> tuple[list[float], list[float]]:
+    """Longitudes y latitudes extremas de la capa: el cuadro del mapa toma su proporción, no la 2:1 del mundo, y el
+    Perú llena la tarjeta."""
+    puntos = [punto for f in geo["features"]
+              for anillos in ([f["geometry"]["coordinates"]] if f["geometry"]["type"] == "Polygon"
+                              else f["geometry"]["coordinates"])
+              for anillo in anillos for punto in anillo]
+    lon, lat = [p[0] for p in puntos], [p[1] for p in puntos]
+    return [min(lon) - margen, max(lon) + margen], [min(lat) - margen, max(lat) + margen]
+
+
 def figura_mapa(unida: pd.DataFrame, geo: dict) -> go.Figure:
+    tope = _tope(unida["pobreza"])
     figura = px.choropleth(unida, geojson=geo, locations="codigo", featureidkey="properties.codigo", color="pobreza",
-                           color_continuous_scale=[color for _, color, _ in CLASES],
-                           range_color=(0, unida["pobreza"].max()),
+                           color_continuous_scale=_escala_por_clases(tope), range_color=(0, tope),
                            hover_name="nombre", hover_data={"codigo": True, "pobreza": ":.1f"},
                            labels={"pobreza": "% de personas", "codigo": "Código"})
-    figura.update_geos(fitbounds="locations", visible=False)
-    figura.update_traces(marker_line_color="#fcfcfb", marker_line_width=0.8)
-    figura.update_layout(title="Pobreza monetaria por ámbito territorial, Perú 2024", height=620,
-                         margin={"l": 0, "r": 0, "t": 48, "b": 0},
-                         coloraxis_colorbar={"title": {"text": "% de personas"}, "ticksuffix": " %"})
-    return figura
+    longitudes, latitudes = _encuadre(geo)
+    figura.update_geos(visible=False, bgcolor="rgba(0,0,0,0)", lonaxis_range=longitudes, lataxis_range=latitudes)
+    figura.update_traces(marker_line_color=SUPERFICIE, marker_line_width=0.8, name="mapa_ambitos")
+    return _lienzo(figura, ALTO_TERRITORIAL, coloraxis_showscale=False, margin={"l": 0, "r": 0, "t": 0, "b": 0})
 
 
-def figura_barras(tabla: pd.DataFrame, columna: str, titulo: str, referencia: float | None = None,
-                  ordenar: bool = False) -> go.Figure:
-    """Barras horizontales en % de personas; con referencia, una línea punteada con el valor nacional."""
-    if ordenar:
-        tabla = tabla.sort_values(columna, ascending=False)
-    figura = go.Figure(go.Bar(x=tabla[columna], y=tabla["nombre"], orientation="h", marker_color=BARRA,
-                              text=[f"{v:.1f} %" for v in tabla[columna]], textposition="outside", cliponaxis=False,
+def figura_ranking(ambitos: pd.DataFrame, referencia: float | None = None,
+                   referenciales: frozenset[str] = frozenset()) -> go.Figure:
+    """Los ámbitos de mayor a menor pobreza. La barra oscura marca Lima y el Callao, el cuadrado repite la clase del
+    mapa y † marca las cifras que el INEI publica como referenciales."""
+    tabla = ambitos.sort_values("pobreza", ascending=False)
+    nombres = (tabla["nombre"] + tabla["codigo"].isin(referenciales).map({True: MARCA_REFERENCIAL, False: ""})).tolist()
+    tope = _tope(tabla["pobreza"])
+    figura = go.Figure(go.Bar(x=tabla["pobreza"], y=nombres, orientation="h", name="ranking_ambitos",
+                              marker_color=tabla["codigo"].isin(LIMA_Y_CALLAO).map({True: BARRA_LIMA, False: BARRA}).tolist(),
                               hovertemplate="%{y}: %{x:.1f} %<extra></extra>"))
+    figura.add_scatter(x=[-0.04 * tope] * len(tabla), y=nombres, mode="markers", name="clase", hoverinfo="skip",
+                       marker={"symbol": "square", "size": 10, "line": {"color": BORDE_CAMPO, "width": 0.5},
+                               "color": [CLASES[clase(v)][1] for v in tabla["pobreza"]]})
+    _cifras(figura, nombres, tabla["pobreza"], tope)
     if referencia is not None:
-        figura.add_vline(x=referencia, line_dash="dash", line_color=REFERENCIA, line_width=1.5,
-                         annotation_text=f"Nacional: {referencia:.1f} %", annotation_position="top")
-    tope = max(tabla[columna].max(), referencia or 0)
-    figura.update_layout(title=titulo, height=110 + 30 * len(tabla), showlegend=False,
-                         margin={"l": 0, "r": 16, "t": 64, "b": 0},
-                         xaxis={"title": "% de personas", "range": [0, tope * 1.18]},
-                         yaxis={"title": None, "autorange": "reversed"})
-    return figura
+        _linea_nacional(figura, referencia)
+    _eje_de_pobreza(figura, tope, desde=-0.08 * tope, cifras=True)
+    return _lienzo(figura, ALTO_TERRITORIAL, bargap=0.3)
+
+
+def figura_barras(tabla: pd.DataFrame, columna: str, referencia: float | None = None,
+                  alto: int | None = None) -> go.Figure:
+    """Barras horizontales en % de personas, en la escala fija; con referencia, la línea nacional."""
+    alto = alto or 90 + 34 * len(tabla)
+    tope = _tope(tabla[columna])
+    figura = go.Figure(go.Bar(x=tabla[columna], y=tabla["nombre"], orientation="h", marker_color=BARRA,
+                              name=columna, hovertemplate="%{y}: %{x:.1f} %<extra></extra>"))
+    _cifras(figura, tabla["nombre"].tolist(), tabla[columna], tope)
+    if referencia is not None:
+        _linea_nacional(figura, referencia)
+    _eje_de_pobreza(figura, tope, cifras=True)
+    # El mismo grosor de barra en todas las tarjetas, aunque tengan distinto número de grupos
+    return _lienzo(figura, alto, bargap=max(0.15, 1 - 22 / ((alto - 70) / len(tabla))))
+
+
+# ---------- contraste con el INEI ----------
+
+def resumen_contraste(contraste: pd.DataFrame) -> dict:
+    """Cuántos ámbitos coinciden, la mayor diferencia y dónde, y cuántas cifras del INEI son referenciales."""
+    maxima = float(contraste["diferencia"].max())
+    return {"total": len(contraste), "dentro": int(contraste["dentro_de_tolerancia"].sum()),
+            "fuera": int((~contraste["dentro_de_tolerancia"]).sum()),
+            "referenciales": int(contraste["referencial"].sum()), "diferencia_maxima": maxima,
+            "donde": " y ".join(contraste.loc[contraste["diferencia"] == maxima, "ambito"])}
+
+
+def _sin_tildes(texto: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", str(texto)) if not unicodedata.combining(c)).casefold()
+
+
+def filtrar_contraste(contraste: pd.DataFrame, vista: str = "todos", busqueda: str = "") -> pd.DataFrame:
+    """Los ámbitos de una vista (todos, fuera de tolerancia o referenciales) cuyo nombre o código contiene la
+    búsqueda, sin distinguir tildes ni mayúsculas."""
+    elegidos = {"todos": pd.Series(True, index=contraste.index), "fuera": ~contraste["dentro_de_tolerancia"],
+                "referenciales": contraste["referencial"]}[vista]
+    buscado = busqueda.strip()
+    if buscado:
+        elegidos = elegidos & (contraste["ambito"].map(_sin_tildes).str.contains(_sin_tildes(buscado), regex=False) |
+                               contraste["codigo"].str.contains(buscado, regex=False))
+    return contraste[elegidos].reset_index(drop=True)
+
+
+def tabla_contraste(contraste: pd.DataFrame) -> pd.DataFrame:
+    """El contraste listo para mostrar: nombres del INEI con tildes, el intervalo como texto y el estado en palabras."""
+    return pd.DataFrame({
+        "Código": contraste["codigo"], "Ámbito": contraste["ambito"],
+        "Réplica ENAHO (%)": contraste["pobreza_pct"], "INEI publicado (%)": contraste["referencia_inei"],
+        "IC 95 % del INEI": [f"{a:.1f} a {b:.1f}" for a, b in zip(contraste["ic_inf"], contraste["ic_sup"])],
+        "Diferencia (pp)": contraste["diferencia"],
+        "Estado": contraste["dentro_de_tolerancia"].map({True: "Coincide", False: "Fuera de tolerancia"}),
+        "Nota": [f"Referencial · CV {cv:.1f} %" if r else "" for r, cv in zip(contraste["referencial"], contraste["cv"])]})
+
+
+def nota_lima(ind: pd.DataFrame) -> str:
+    """Por qué el departamento de Lima no está en el contraste, con su réplica de la ENAHO."""
+    fila = ind.loc[ind["id"] == LIMA_DEPARTAMENTO, "valor"]
+    replica = f" (réplica: {float(fila.iat[0]):.2f} %)" if len(fila) else ""
+    return (f"**Lima (departamento 15).** El INEI no publica una cifra para el departamento en conjunto{replica}. Se "
+            "contrasta por ámbito: Lima Metropolitana es la provincia de Lima (1501, 43 distritos), sin el Callao, y "
+            "Lima provincias son las otras nueve provincias del departamento.")
+
+
+def figura_intervalos(contraste: pd.DataFrame) -> go.Figure:
+    """Banda: intervalo de confianza al 95 % que publica el INEI. Anillo: su cifra. Punto: la réplica con la ENAHO."""
+    y = contraste["ambito"].tolist()
+    figura = go.Figure(go.Bar(y=y, x=contraste["ic_sup"] - contraste["ic_inf"], base=contraste["ic_inf"],
+                              orientation="h", marker_color=INTERVALO, name="IC 95 % del INEI",
+                              customdata=contraste[["ic_inf", "ic_sup"]],
+                              hovertemplate="%{y}: IC 95 % de %{customdata[0]:.1f} a %{customdata[1]:.1f} %"
+                                            "<extra></extra>"))
+    figura.add_scatter(y=y, x=contraste["referencia_inei"], mode="markers", name="Cifra del INEI",
+                       marker={"symbol": "circle-open", "size": 11, "color": TINTA, "line": {"width": 2}},
+                       hovertemplate="%{y}: INEI %{x:.1f} %<extra></extra>")
+    figura.add_scatter(y=y, x=contraste["pobreza_pct"], mode="markers", name="Réplica ENAHO",
+                       marker={"size": 7, "color": REPLICA}, hovertemplate="%{y}: réplica %{x:.2f} %<extra></extra>")
+    _eje_de_pobreza(figura, _tope(contraste["ic_sup"]))
+    return _lienzo(figura, 90 + 26 * len(contraste), showlegend=True, bargap=0.45,
+                   legend={"orientation": "h", "x": 0, "y": 1, "yanchor": "bottom"},
+                   margin={"l": 0, "r": 24, "t": 36, "b": 0})
 
 
 # ---------- BCRP ----------
@@ -288,6 +499,31 @@ def fecha_periodo(periodo: str) -> pd.Timestamp:
         anio, trimestre = periodo.split("-T")
         return pd.Timestamp(int(anio), 3 * int(trimestre) - 2, 1)
     return pd.Timestamp(periodo if len(periodo) > 4 else f"{periodo}-01-01")
+
+
+def etiqueta_periodo(periodo: str, con_dia: bool = True) -> str:
+    """Un periodo del BCRP en español: «2025», «T1 2025», «ene 2025» o «2 oct 2026» (sin el día, «oct 2026»)."""
+    if "-T" in periodo:
+        anio, trimestre = periodo.split("-T")
+        return f"T{trimestre} {anio}"
+    if len(periodo) == 4:
+        return periodo
+    fecha = fecha_periodo(periodo)
+    mes = f"{MESES[fecha.month - 1]} {fecha.year}"
+    return f"{fecha.day} {mes}" if len(periodo) > 7 and con_dia else mes
+
+
+def _marcas_eje(serie: pd.DataFrame, maximo: int = 8) -> tuple[list, list[str]]:
+    """Las marcas del eje de tiempo con etiquetas en español: en una serie mensual o diaria de varios años, la primera
+    observación de cada año; si no, marcas repartidas. Nunca más de `maximo`."""
+    fechas, periodos = serie["fecha"].tolist(), serie["periodo"].tolist()
+    if len(periodos[0]) >= 7 and fechas[-1].year > fechas[0].year:
+        indices = [i for i, f in enumerate(fechas) if i == 0 or f.year != fechas[i - 1].year]
+        indices = indices[::-(-len(indices) // maximo)]
+    else:
+        n = min(len(fechas), maximo)
+        indices = sorted({round(i * (len(fechas) - 1) / max(n - 1, 1)) for i in range(n)})
+    return [fechas[i] for i in indices], [etiqueta_periodo(periodos[i], con_dia=False) for i in indices]
 
 
 def series_bcrp(carpeta: Path = BCRP) -> pd.DataFrame:
@@ -311,13 +547,18 @@ def catalogo_bcrp(tabla: pd.DataFrame) -> pd.DataFrame:
 
 
 def figura_serie(serie: pd.DataFrame) -> go.Figure:
-    figura = go.Figure(go.Scatter(x=serie["fecha"], y=serie["valor"], mode="lines", line={"color": BARRA, "width": 2},
-                                  customdata=serie["periodo"], hovertemplate="%{customdata}: %{y:,.2f}<extra></extra>"))
+    """La serie en el tiempo, con fechas en español; las anuales llevan un marcador en cada año."""
+    anual = len(serie["periodo"].iat[0]) == 4
+    figura = go.Figure(go.Scatter(x=serie["fecha"], y=serie["valor"], mode="lines+markers" if anual else "lines",
+                                  name="serie", line={"color": BARRA, "width": 2}, marker={"size": 7, "color": BARRA},
+                                  customdata=serie["periodo"].map(etiqueta_periodo),
+                                  hovertemplate="%{customdata}: %{y:,.2f}<extra></extra>"))
     if serie["valor"].min() < 0 < serie["valor"].max():
         figura.add_hline(y=0, line_color=REFERENCIA, line_width=1)
-    figura.update_layout(title=serie["nombre"].iat[0], height=440, showlegend=False,
-                         margin={"l": 0, "r": 16, "t": 56, "b": 0}, xaxis_title=None, yaxis_title=None)
-    return figura
+    marcas, etiquetas = _marcas_eje(serie)
+    figura.update_xaxes(title=None, tickvals=marcas, ticktext=etiquetas, gridcolor=BORDE)
+    figura.update_yaxes(title=None, gridcolor=BORDE)
+    return _lienzo(figura, 440, margin={"l": 0, "r": 16, "t": 16, "b": 0})
 
 
 # ---------- evaluación ----------
@@ -367,12 +608,13 @@ def resumen_robustez(tabla: pd.DataFrame) -> pd.DataFrame:
     return resumen
 
 
-def figura_modos(por_modo: pd.DataFrame, columna: str, titulo: str, textos: list[str], tope: float | None = None) -> go.Figure:
+def figura_modos(por_modo: pd.DataFrame, columna: str, textos: list[str], tope: float | None = None) -> go.Figure:
     figura = go.Figure(go.Bar(x=por_modo["etiqueta"], y=por_modo[columna], marker_color=BARRA, text=textos,
-                              textposition="outside", cliponaxis=False, hovertemplate="%{x}: %{text}<extra></extra>"))
-    figura.update_layout(title=titulo, height=380, showlegend=False, margin={"l": 0, "r": 0, "t": 56, "b": 0},
-                         xaxis_title=None, yaxis={"title": None, "range": [0, tope or por_modo[columna].max() * 1.2]})
-    return figura
+                              name=columna, textposition="outside", cliponaxis=False,
+                              hovertemplate="%{x}: %{text}<extra></extra>"))
+    figura.update_xaxes(title=None)
+    figura.update_yaxes(title=None, range=[0, tope or por_modo[columna].max() * 1.2], gridcolor=BORDE)
+    return _lienzo(figura, 380, margin={"l": 0, "r": 0, "t": 16, "b": 0})
 
 
 def conteo_consistencia(tabla: pd.DataFrame) -> dict[str, int]:
@@ -382,5 +624,23 @@ def conteo_consistencia(tabla: pd.DataFrame) -> dict[str, int]:
 
 
 def estilo_resultado(valor) -> str:
-    color = COLORES_RESULTADO.get(valor)
-    return f"background-color: {color}; color: #0b0b0b" if color else ""
+    estado = ESTADO_DE.get(valor) if isinstance(valor, str) else None
+    if estado is None:
+        return ""
+    fondo, texto, _ = ESTILOS_ESTADO[estado]
+    return f"background-color: {fondo}; color: {texto}"
+
+
+def con_icono(valor) -> str:
+    """El estado con su ícono delante («✓ OK»); una celda vacía, como una pregunta que un modo no respondió, queda
+    vacía."""
+    if not isinstance(valor, str):
+        return ""
+    estado = ESTADO_DE.get(valor)
+    return f"{ESTILOS_ESTADO[estado][2]} {valor}" if estado else valor
+
+
+def estilar_estados(tabla: pd.DataFrame, columnas: list[str], formatos: dict | None = None):
+    """La tabla con las columnas de estado en sus colores y con ícono; `formatos` fija los decimales de las demás."""
+    return (tabla.style.map(estilo_resultado, subset=columnas).format(con_icono, subset=columnas)
+            .format(formatos or {}))
